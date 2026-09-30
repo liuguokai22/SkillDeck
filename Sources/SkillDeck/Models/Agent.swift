@@ -13,4 +13,13 @@ struct Agent: Identifiable, Hashable {
     // Identifiable protocol: SwiftUI uses id to track each element in a list
     var id: String { type.id }
     var displayName: String { type.displayName }
+
+    /// Whether there is reliable local evidence that this Agent is available.
+    ///
+    /// Finder-launched macOS apps do not inherit the user's interactive shell PATH, so CLI lookup
+    /// alone can report false negatives even when an Agent's configuration or skills directory is
+    /// present. UI features such as "Show Installed Only" should use all three signals.
+    var isAvailable: Bool {
+        isInstalled || configDirectoryExists || skillsDirectoryExists
+    }
 }

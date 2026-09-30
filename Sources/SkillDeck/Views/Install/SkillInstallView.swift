@@ -47,6 +47,21 @@ struct SkillInstallView: View {
         }
         // Sheet modal minimum size (macOS standard practice)
         .frame(minWidth: 550, minHeight: 400)
+        // Keep this task on the sheet root: changing phase removes inputURLPhase.
+        // SwiftUI cancels a view-owned task when its view disappears, which would
+        // cancel URLSession immediately after fetchRepository sets .fetching.
+        // .task runs async code when the view first appears (like Android onResume + coroutine)
+        // Used here to load repo history and handle F09 auto-fetch
+        .task {
+            await viewModel.loadHistory()
+            // F09: Auto-fetch if URL was pre-filled from Registry Browser
+            // When user clicks "Install" on a registry skill, the URL is already set
+            // and autoFetch is true, so we skip the manual "Scan" step
+            if viewModel.autoFetch && !viewModel.repoURLInput.isEmpty {
+                viewModel.autoFetch = false  // One-shot flag: don't re-fetch on view re-render
+                await viewModel.fetchRepository()
+            }
+        }
     }
 
     // MARK: - Header
@@ -54,7 +69,7 @@ struct SkillInstallView: View {
     /// Header bar (common to all phases)
     private var headerBar: some View {
         HStack {
-            Text("Install Skills from GitHub").appFont(.headline)
+            Text("Install Skills").appFont(.headline)
             Spacer()
             // Close button
             Button {
@@ -82,13 +97,13 @@ struct SkillInstallView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
 
-            Text("Enter a GitHub repository to scan for skills").appFont(.subheadline)
+            Text("Enter a GitHub repository or domain to scan for skills").appFont(.subheadline)
                 .foregroundStyle(.secondary)
 
             // URL input field
             // TextField is similar to HTML's <input type="text">, placeholder is gray hint text
             HStack {
-                TextField("owner/repo or GitHub URL", text: $viewModel.repoURLInput)
+                TextField("owner/repo, GitHub URL, or domain (e.g. uizze.sh)", text: $viewModel.repoURLInput)
                     .textFieldStyle(.roundedBorder)
                     // onSubmit listens for return key event (similar to HTML form submit)
                     .onSubmit {
@@ -161,18 +176,6 @@ struct SkillInstallView: View {
             Spacer()
         }
         .padding()
-        // .task runs async code when the view first appears (like Android onResume + coroutine)
-        // Used here to load repo history and handle F09 auto-fetch
-        .task {
-            await viewModel.loadHistory()
-            // F09: Auto-fetch if URL was pre-filled from Registry Browser
-            // When user clicks "Install" on a registry skill, the URL is already set
-            // and autoFetch is true, so we skip the manual "Scan" step
-            if viewModel.autoFetch && !viewModel.repoURLInput.isEmpty {
-                viewModel.autoFetch = false  // One-shot flag: don't re-fetch on view re-render
-                await viewModel.fetchRepository()
-            }
-        }
     }
 
     /// Phase: Cloning and scanning in progress
@@ -229,7 +232,10 @@ struct SkillInstallView: View {
                                     }
                                 }
                             )) {
-                                Label(agentType.displayName, systemImage: agentType.iconName).appFont(.caption)
+                                HStack(spacing: 5) {
+                                    AgentBrandIcon(agentType: agentType, size: 14)
+                                    Text(agentType.displayName).appFont(.caption)
+                                }
                             }
                             .toggleStyle(.checkbox)
                             // Uninstalled Agents have reduced opacity but are still selectable
@@ -251,8 +257,8 @@ struct SkillInstallView: View {
                         Task { await viewModel.installSelected() }
                     }
                     .disabled(viewModel.selectedSkillPaths.isEmpty || viewModel.selectedAgents.isEmpty)
-                    // .buttonStyle(.borderedProminent) makes button display filled prominent color style
-                    .buttonStyle(.borderedProminent)
+                    // Keep the primary action prominent with native glass where available.
+                    .liquidGlassButtonStyle(.prominent)
                 }
             }
             .padding()
@@ -295,7 +301,7 @@ struct SkillInstallView: View {
                     // dismiss() closes current sheet
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent)
+                .liquidGlassButtonStyle(.prominent)
             }
 
             Spacer()

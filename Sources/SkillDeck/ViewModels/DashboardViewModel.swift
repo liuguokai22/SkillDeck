@@ -19,6 +19,10 @@ final class DashboardViewModel {
     /// Currently selected Agent filter (nil means show all)
     var selectedAgentFilter: AgentType?
 
+    /// Currently selected tag filter (nil means show all tags)
+    /// When set, only skills with this tag are displayed
+    var selectedTagFilter: String?
+
     /// Sort order
     var sortOrder: SortOrder = .name
 
@@ -97,7 +101,14 @@ final class DashboardViewModel {
             }
         }
 
-        // 3. Sorting (ascending or descending based on sort direction)
+        // 3. Tag filtering
+        if let tag = selectedTagFilter {
+            result = result.filter { skill in
+                (skillManager.skillTags[skill.id] ?? []).contains(tag)
+            }
+        }
+
+        // 4. Sorting (ascending or descending based on sort direction)
         // In Swift closures, $0 and $1 are anonymous parameters, similar to Kotlin's it
         let ascending = sortDirection == .ascending
         switch sortOrder {

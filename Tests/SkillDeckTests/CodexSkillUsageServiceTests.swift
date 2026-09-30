@@ -101,6 +101,26 @@ final class CodexSkillUsageServiceTests: XCTestCase {
         XCTAssertEqual(result.records["computer-use"]?.detectedInvocationCount, 1)
     }
 
+    func testScanRecognizesSkillDeckCanonicalSkillPath() async throws {
+        let fixture = try TemporaryHistoryFixture()
+        defer { fixture.remove() }
+
+        let historyDirectory = fixture.root.appendingPathComponent("sessions", isDirectory: true)
+        try FileManager.default.createDirectory(at: historyDirectory, withIntermediateDirectories: true)
+        let event = try makeEvent(
+            timestamp: "2026-08-07T10:00:00.000Z",
+            input: "sed /Users/test/.skilldeck/skills/ios-design/SKILL.md"
+        )
+        try writeJSONL([event], to: historyDirectory.appendingPathComponent("skilldeck.jsonl"))
+
+        let result = await CodexSkillUsageService(
+            historyDirectories: [historyDirectory],
+            homeDirectory: testHomeDirectory
+        ).scan()
+
+        XCTAssertEqual(result.records["ios-design"]?.detectedInvocationCount, 1)
+    }
+
     func testScanReturnsNoCoverageWhenHistoryIsMissing() async throws {
         let fixture = try TemporaryHistoryFixture()
         defer { fixture.remove() }

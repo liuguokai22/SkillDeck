@@ -39,8 +39,9 @@ enum Constants {
         }
     }
 
-    /// Shared skills directory path
-    static let sharedSkillsPath = "~/.agents/skills"
+    /// SkillDeck-owned canonical skills directory path.
+    /// Agent discovery directories contain removable symlinks to this store.
+    static let sharedSkillsPath = "~/.skilldeck/skills"
 
     /// Lock file path
     static let lockFilePath = "~/.agents/.skill-lock.json"

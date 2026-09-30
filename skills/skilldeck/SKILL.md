@@ -16,18 +16,20 @@ SkillDeck is a macOS GUI app that manages skills across 14 AI agents. Skills are
 ## Filesystem Layout
 
 ```
-~/.agents/
-├── skills/                    # Canonical storage (real files live here)
+~/.skilldeck/
+└── skills/                    # SkillDeck-owned canonical storage
 │   ├── my-skill/
 │   │   ├── SKILL.md           # Skill definition (YAML frontmatter + markdown)
 │   │   └── ...                # Other files (scripts, templates, etc.)
 │   └── another-skill/
 │       └── SKILL.md
+
+~/.agents/
 ├── .skill-lock.json           # Lock file (v3, shared with npx skills)
 └── .skilldeck-cache.json      # SkillDeck's private cache (do not modify)
 
 ~/.claude/skills/              # Claude Code skills (symlinks → canonical)
-~/.codex/skills/               # Codex skills (symlinks → canonical, also reads ~/.agents/skills/)
+~/.codex/skills/               # Codex skills (symlinks → canonical)
 ~/.gemini/skills/              # Gemini CLI skills
 ~/.copilot/skills/             # Copilot CLI skills (also reads ~/.claude/skills/)
 ~/.config/opencode/skills/     # OpenCode skills (also reads ~/.claude/skills/ and ~/.agents/skills/)
@@ -43,11 +45,11 @@ SkillDeck is a macOS GUI app that manages skills across 14 AI agents. Skills are
 ```
 
 **Key rules:**
-- The real copy of every skill lives in `~/.agents/skills/<name>/`
+- The real copy of every SkillDeck-managed skill lives in `~/.skilldeck/skills/<name>/`
 - Each agent gets a **symlink** pointing to the canonical directory
-- Example: `~/.claude/skills/my-skill` → `~/.agents/skills/my-skill`
+- Example: `~/.claude/skills/my-skill` → `~/.skilldeck/skills/my-skill`
 - Some agents can read other agents' directories (cross-directory inheritance):
-  - **Codex** reads `~/.agents/skills/` natively (no symlink needed)
+  - **Codex** also reads external skills in `~/.agents/skills/`, but SkillDeck assignments always use a removable direct link in `~/.codex/skills/`
   - **Copilot** reads `~/.claude/skills/`
   - **OpenCode** reads `~/.claude/skills/` and `~/.agents/skills/`
   - **Cursor** reads `~/.claude/skills/`
@@ -161,7 +163,7 @@ ALL_AGENT_SKILLS=(
 ### Find which agents have a skill installed
 
 ```bash
-# Usage: find_skill_agents "my-skill" "$HOME/.agents/skills/my-skill"
+# Usage: find_skill_agents "my-skill" "$HOME/.skilldeck/skills/my-skill"
 find_skill_agents() {
   local SKILL_NAME="$1"
   local CANONICAL="$2"
@@ -180,7 +182,7 @@ find_skill_agents() {
 ### Create symlinks for multiple agents
 
 ```bash
-# Usage: create_symlinks "my-skill" "$HOME/.agents/skills/my-skill" "${TARGET_DIRS[@]}"
+# Usage: create_symlinks "my-skill" "$HOME/.skilldeck/skills/my-skill" "${TARGET_DIRS[@]}"
 create_symlinks() {
   local SKILL_NAME="$1"
   local CANONICAL="$2"
@@ -199,7 +201,7 @@ create_symlinks() {
 ### Remove symlinks from multiple agents
 
 ```bash
-# Usage: remove_symlinks "my-skill" "$HOME/.agents/skills/my-skill"
+# Usage: remove_symlinks "my-skill" "$HOME/.skilldeck/skills/my-skill"
 remove_symlinks() {
   local SKILL_NAME="$1"
   local CANONICAL="$2"
@@ -224,7 +226,7 @@ remove_symlinks() {
 1. Clone the repository to a temporary directory
 2. Locate the SKILL.md file and the skill directory
 3. Detect installed agents (or use user-specified targets)
-4. Copy the skill directory to `~/.agents/skills/<name>/`
+4. Copy the skill directory to `~/.skilldeck/skills/<name>/`
 5. Create symlinks for target agents
 6. Update the lock file
 
@@ -271,7 +273,7 @@ else
 fi
 
 # === 3. Check not already installed ===
-CANONICAL="$HOME/.agents/skills/$SKILL_NAME"
+CANONICAL="$HOME/.skilldeck/skills/$SKILL_NAME"
 if [ -d "$CANONICAL" ]; then
   echo "❌ Skill '$SKILL_NAME' already exists. Use update instead."
   rm -rf "$TMPDIR"
@@ -310,7 +312,7 @@ fi
 echo "Installing for ${#TARGET_DIRS[@]} agents: ${TARGET_DIRS[*]}"
 
 # === 5. Copy to canonical directory ===
-mkdir -p "$HOME/.agents/skills"
+mkdir -p "$HOME/.skilldeck/skills"
 cp -R "$SOURCE_DIR" "$CANONICAL"
 
 # === 6. Create symlinks ===
@@ -377,7 +379,7 @@ echo "✅ Installed '$SKILL_NAME'"
 
 ```bash
 SKILL_NAME="my-skill"
-CANONICAL="$HOME/.agents/skills/$SKILL_NAME"
+CANONICAL="$HOME/.skilldeck/skills/$SKILL_NAME"
 
 # 1. Check existence
 if [ ! -d "$CANONICAL" ]; then
@@ -445,7 +447,7 @@ Pull latest from GitHub, overwrite local copy, preserve symlinks.
 
 ```bash
 SKILL_NAME="my-skill"
-CANONICAL="$HOME/.agents/skills/$SKILL_NAME"
+CANONICAL="$HOME/.skilldeck/skills/$SKILL_NAME"
 
 # 1. Check installed
 if [ ! -d "$CANONICAL" ]; then
@@ -598,7 +600,7 @@ echo "✅ Updated '$SKILL_NAME'"
 
 ```bash
 echo "Installed skills:"
-for DIR in "$HOME/.agents/skills"/*/; do
+for DIR in "$HOME/.skilldeck/skills"/*/; do
   [ -f "$DIR/SKILL.md" ] || continue
   NAME=$(basename "$DIR")
   DESC=$(sed -n '/^---$/,/^---$/{ /^description:/{ s/^description: *//; p; q; } }' "$DIR/SKILL.md" 2>/dev/null)
@@ -611,7 +613,7 @@ done
 ```bash
 SKILL_NAME="my-skill"
 AGENT_SKILLS_DIR="$HOME/.claude/skills"  # change to target agent
-CANONICAL="$HOME/.agents/skills/$SKILL_NAME"
+CANONICAL="$HOME/.skilldeck/skills/$SKILL_NAME"
 
 # Assign
 mkdir -p "$AGENT_SKILLS_DIR"
@@ -633,12 +635,12 @@ curl -s "https://api.clawhub.com/v1/skills/search?q=your-query" | python3 -m jso
 
 ## Important Notes
 
-1. **SkillDeck auto-refreshes**: The GUI watches `~/.agents/skills/` and all agent directories. Changes via shell are reflected in the GUI within 0.5s.
+1. **SkillDeck auto-refreshes**: The GUI watches `~/.skilldeck/skills/` and all agent directories. Changes via shell are reflected in the GUI within 0.5s.
 
 2. **Lock file compatibility**: Format is v3 (shared with `npx skills`). Always preserve `version: 3` and existing entries.
 
-3. **Cross-directory inheritance**: Symlinks in `~/.claude/skills/` are also visible to Copilot, OpenCode, and Cursor. Don't create redundant symlinks.
+3. **Cross-directory inheritance**: Symlinks in `~/.claude/skills/` can also be visible to Copilot, OpenCode, and Cursor. Create direct links when assignments must be independently removable; inherited availability remains read-only in SkillDeck.
 
-4. **Codex special case**: Reads `~/.agents/skills/` natively. Symlink in `~/.codex/skills/` is optional but consistent.
+4. **Codex assignments**: Always create or remove the direct link in `~/.codex/skills/`. Files found only in the external `~/.agents/skills/` compatibility directory are inherited and read-only in SkillDeck.
 
 5. **Never modify**: `~/.agents/.skilldeck-cache.json` (SkillDeck private cache)

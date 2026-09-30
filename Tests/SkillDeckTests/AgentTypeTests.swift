@@ -64,7 +64,7 @@ final class AgentTypeTests: XCTestCase {
         XCTAssertEqual(agent.iconName, "terminal")
         XCTAssertEqual(agent.brandColor, "green")
 
-        // Codex also reads the shared canonical directory ~/.agents/skills/
+        // Codex also reads the external cross-agent compatibility directory ~/.agents/skills/
         let additionalDirs = agent.additionalReadableSkillsDirectories
         XCTAssertEqual(additionalDirs.count, 1)
         XCTAssertEqual(additionalDirs[0].sourceAgent, .codex)

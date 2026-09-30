@@ -4,6 +4,7 @@ import AppKit
 /// AppDelegate handles app-level lifecycle events
 /// In SwiftUI apps, use @NSApplicationDelegateAdaptor to bridge with it
 /// Main purpose: When launching via `swift run`, macOS doesn't automatically bring the app window to the foreground (because it's not a .app bundle)
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         // setActivationPolicy(.regular) tells macOS: this is a normal GUI app
@@ -13,6 +14,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // .accessory = Accessory app (menu bar only, no Dock icon)
         // .prohibited = Pure background process (no UI)
         NSApplication.shared.setActivationPolicy(.regular)
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(toolbarDidRemoveItem(_:)),
+            name: NSToolbar.didRemoveItemNotification,
+            object: nil
+        )
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -27,6 +35,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let iconURL = Bundle.module.url(forResource: "AppIcon", withExtension: "icns") {
             // NSImage(contentsOf:) loads image from file URL, supports .icns multi-resolution format
             NSApplication.shared.applicationIconImage = NSImage(contentsOf: iconURL)
+        }
+    }
+
+    func applicationDidUpdate(_ notification: Notification) {
+        // SwiftUI rebuilds the NSToolbar when destination-specific controls change. Reassert the
+        // one native flexible space after those updates so all actions remain at the window's true
+        // trailing edge instead of stopping at the middle-column toolbar section.
+        DispatchQueue.main.async {
+            self.applyWindowToolbarLayout()
+        }
+    }
+
+    @objc private func toolbarDidRemoveItem(_ notification: Notification) {
+        // Destination switches make SwiftUI discard and rebuild its generated toolbar items,
+        // including the AppKit spacer. Wait until that synchronous rebuild finishes, then restore
+        // the window-level layout once rather than racing each individual removal.
+        DispatchQueue.main.async {
+            self.applyWindowToolbarLayout()
+        }
+    }
+
+    private func applyWindowToolbarLayout() {
+        for window in NSApplication.shared.windows {
+            WindowToolbarLayout.installTrailingSpacer(in: window)
         }
     }
 }
@@ -48,7 +80,7 @@ struct SkillDeckApp: App {
     @State private var skillManager = SkillManager()
 
     /// @AppStorage is a SwiftUI property wrapper that syncs values with UserDefaults.
-    @AppStorage(FontSettings.familyKey) private var uiFontFamily = FontSettings.systemFontFamily
+    @AppStorage(FontSettings.familyKey) private var uiFontFamily = FontSettings.defaultFontFamily
     @AppStorage(FontSettings.sizeKey) private var uiFontSize = FontSettings.defaultFontSize
 
      @AppStorage(LanguageSettings.appLanguageKey) private var uiLanguageRaw = LanguageSettings.defaultLanguage.rawValue
@@ -84,6 +116,13 @@ struct SkillDeckApp: App {
         }
         // Set the window's default size
         .defaultSize(width: 1000, height: 700)
+        // Mail keeps one continuous toolbar band and does not repeat the current mailbox title in
+        // the title bar. Hiding the title removes the redundant "All Skills" label while preserving
+        // the window title for accessibility, Window menu entries, and state restoration.
+        .windowToolbarStyle(.unified(showsTitle: false))
+        .commands {
+            SidebarCommands()
+        }
 
         // Settings scene: macOS app's "Preferences" window
         // Users can open it with Cmd+,

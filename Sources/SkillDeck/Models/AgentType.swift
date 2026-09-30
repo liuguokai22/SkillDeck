@@ -82,6 +82,38 @@ enum AgentType: String, CaseIterable, Identifiable, Codable {
         }
     }
 
+    /// File name of the verified product mark bundled with the app.
+    ///
+    /// These SVGs come from the MIT-licensed LobeHub icon collection. QClaw and WorkBuddy are not
+    /// present in that catalog, so they intentionally return `nil` and use an honest monogram
+    /// fallback instead of presenting an invented symbol as an official logo.
+    var brandIconResourceName: String? {
+        switch self {
+        case .claudeCode: "claudecode"
+        case .codex: "codex"
+        case .geminiCLI: "geminicli"
+        case .copilotCLI: "copilot"
+        case .openCode: "opencode"
+        case .antigravity: "antigravity"
+        case .cursor: "cursor"
+        case .kiro: "kiro"
+        case .codeBuddy: "codebuddy"
+        case .openClaw: "openclaw"
+        case .trae: "trae"
+        case .qoder: "qoder"
+        case .qclaw, .workbuddy: nil
+        }
+    }
+
+    /// Stable fallback mark for Agents whose publisher does not provide a bundled logo asset.
+    var brandMonogram: String {
+        switch self {
+        case .qclaw: "Q"
+        case .workbuddy: "W"
+        default: String(displayName.prefix(1)).uppercased()
+        }
+    }
+
     /// User-level skills directory path for the Agent
     /// ~ represents user home directory, e.g., /Users/chenjie
     var skillsDirectoryPath: String {
@@ -168,9 +200,11 @@ enum AgentType: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    /// Shared canonical skills directory URL (~/.agents/skills/)
-    /// Used by SkillScanner and agents that read from the shared directory (e.g., OpenCode).
-    /// Defined here as a single source of truth to avoid duplicating the path string.
+    /// Cross-agent standards directory (`~/.agents/skills/`).
+    ///
+    /// Codex and OpenCode can still read this directory, but it is no longer SkillDeck's
+    /// canonical store. SkillDeck keeps real files in `~/.skilldeck/skills/` and assigns Agents
+    /// through direct links in their own directories.
     static let sharedSkillsDirectoryURL: URL = {
         let path = NSString(string: "~/.agents/skills").expandingTildeInPath
         return URL(fileURLWithPath: path)
@@ -190,15 +224,15 @@ enum AgentType: String, CaseIterable, Identifiable, Codable {
     var additionalReadableSkillsDirectories: [(url: URL, sourceAgent: AgentType)] {
         switch self {
         case .codex:
-            // Codex also reads the shared canonical directory ~/.agents/skills/
+            // Codex also reads the cross-agent standards directory ~/.agents/skills/
             // See: https://developers.openai.com/codex/skills/#where-to-save-skills
-            // $HOME/.agents/skills is the user-level skills directory for Codex
+            // SkillDeck does not place canonical files here; external tools may still use it.
             return [(Self.sharedSkillsDirectoryURL, .codex)]
         case .copilotCLI:
             // Copilot CLI can also read Claude Code's skills directory
             return [(AgentType.claudeCode.skillsDirectoryURL, .claudeCode)]
         case .openCode:
-            // OpenCode can also read Claude Code's and the shared canonical skills directories
+            // OpenCode can also read Claude Code's and the cross-agent compatibility directory
             // See: https://opencode.ai/docs/skills/#place-files
             return [
                 (AgentType.claudeCode.skillsDirectoryURL, .claudeCode),

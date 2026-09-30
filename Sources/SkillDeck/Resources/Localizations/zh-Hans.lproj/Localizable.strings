@@ -83,6 +83,8 @@
 "sidebar.help.installSkill" = "安装技能";
 "sidebar.help.checkAllUpdates" = "检查所有技能更新";
 "sidebar.help.refreshSkills" = "刷新技能";
+"sidebar.help.show" = "显示边栏";
+"sidebar.help.hide" = "隐藏边栏";
 
 "empty.selectSkill.title" = "选择一个技能";
 "empty.selectSkill.subtitle.list" = "从列表中选择一个技能以查看详情";
@@ -105,3 +107,34 @@
 "usage.caveat" = "仅供参考：缺失的日志、其他 Agent 以及项目引用均未计入。";
 "usage.refresh.help" = "重新扫描 Codex 使用记录";
 "usage.incomplete.help" = "部分 Codex 历史记录无法读取，使用统计可能不完整";
+
+"documentation.section.title" = "文档";
+"agentAssignment.title" = "Agent 分配";
+"agentAssignment.summary" = "已分配给 %d 个 Agent";
+"agentAssignment.manage" = "管理";
+"agentAssignment.none" = "尚未分配 Agent";
+
+"tags.section.title" = "标签";
+"tags.add" = "添加标签";
+"tags.remove" = "移除标签";
+"tags.manage" = "管理标签";
+"tags.filter.all" = "全部";
+"tags.create.new" = "新建标签";
+"tags.create.placeholder" = "输入标签名称";
+"tags.empty" = "暂无标签";
+"tags.section.manage.title" = "管理标签";
+"tags.delete.confirm" = "删除标签“%@”？此操作将从所有技能中移除该标签。";
+
+"sidebar.settings" = "设置";
+"settings.tab.agents" = "代理";
+"settings.agents.section.title" = "边栏代理列表";
+"settings.agents.section.subtitle" = "控制在左侧导航栏的代理列表中显示哪些 Agent。";
+"settings.agents.showAll" = "全部显示";
+"settings.agents.showInstalledOnly" = "仅显示已安装";
+"settings.agents.installed" = "已安装";
+"settings.agents.notInstalled" = "未安装";
+"settings.agents.hideAction" = "在边栏中隐藏";
+"settings.agents.showAction" = "在边栏中显示";
+"common.cancel" = "取消";
+"common.delete" = "删除";
+"common.close" = "关闭";

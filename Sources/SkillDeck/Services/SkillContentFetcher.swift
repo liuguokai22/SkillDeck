@@ -29,9 +29,11 @@ import Foundation
 actor SkillContentFetcher {
 
     private let sessionProvider: NetworkSessionProvider
+    private let wellKnownService: WellKnownSkillService
 
     init(sessionProvider: NetworkSessionProvider = .shared) {
         self.sessionProvider = sessionProvider
+        self.wellKnownService = WellKnownSkillService(sessionProvider: sessionProvider)
     }
 
     // MARK: - Error Types
@@ -107,6 +109,17 @@ actor SkillContentFetcher {
         if let cached = cache[cacheKey],
            Date().timeIntervalSince(cached.fetchedAt) < cacheTTL {
             return cached.content
+        }
+
+        // 1.5 If Well-Known source, fetch from Well-Known endpoint
+        if WellKnownSkillService.isWellKnownSource(source) {
+            do {
+                let content = try await wellKnownService.fetchSkillMDContent(source: source, skillId: skillId)
+                cache[cacheKey] = (content: content, fetchedAt: Date())
+                return content
+            } catch {
+                throw FetchError.notFound
+            }
         }
 
         // 2. Try direct candidate URLs: both branch names × both directory layouts.

@@ -130,9 +130,20 @@ final class SkillManager {
     /// Error message during update process (displayed to user, retryable)
     var updateError: String?
 
+    // MARK: - Tag State (user-assigned skill tags for categorization)
+
+    /// Tags assigned to each skill, indexed by skill ID
+    /// Loaded from SkillTagStore on launch, kept in sync with persistent storage
+    var skillTags: [String: [String]] = [:]
+
+    /// All known tags (including tags not currently assigned to any skill)
+    /// Users can create tags ahead of time and assign them later
+    var knownTags: [String] = []
+
     // MARK: - Dependencies (dependent sub-services)
 
     private let scanner = SkillScanner()
+    private let storageMigrator: SkillStorageMigrator
     private let detector = AgentDetector()
     private let lockFileManager = LockFileManager()
     private let watcher = FileSystemWatcher()
@@ -140,9 +151,16 @@ final class SkillManager {
     private let updateChecker = UpdateChecker()
     /// F10/F12: Git operations service for installation and update checking
     private let gitService = GitService()
+    /// F10: Well-Known endpoint service for domain-based skill discovery and installation
+    private let wellKnownService = WellKnownSkillService()
     /// F12: SkillDeck private commit hash cache, independent of .skill-lock.json
     /// Stored in ~/.agents/.skilldeck-cache.json, doesn't pollute npx skills' lock file format
     private let commitHashCache = CommitHashCache()
+
+    /// Persistent store for user-assigned skill tags (e.g., "科研", "求职")
+    /// Tags are stored independently from SKILL.md to allow flexible categorization
+    /// without modifying skill source files
+    private let tagStore = SkillTagStore()
 
     /// Agent-specific adapter for reconstructing historical Codex skill invocations.
     private let codexSkillUsageService: CodexSkillUsageService
@@ -164,8 +182,12 @@ final class SkillManager {
 
     // MARK: - Initialization
 
-    init(codexSkillUsageService: CodexSkillUsageService = CodexSkillUsageService()) {
+    init(
+        codexSkillUsageService: CodexSkillUsageService = CodexSkillUsageService(),
+        storageMigrator: SkillStorageMigrator = SkillStorageMigrator()
+    ) {
         self.codexSkillUsageService = codexSkillUsageService
+        self.storageMigrator = storageMigrator
         setupFileWatcher()
     }
 
@@ -258,6 +280,14 @@ final class SkillManager {
         errorMessage = nil
 
         do {
+            let migration = try await storageMigrator.migrateIfNeeded()
+            if migration.didMigrate {
+                print(
+                    "[SkillManager] Migrated \(migration.migratedSkillNames.count) skills "
+                    + "to \(SkillStorage.canonicalSkillsURL.path); backup: \(migration.backupPath)"
+                )
+            }
+
             // Execute Agent detection and Skill scanning concurrently
             // async let is similar to Go's goroutine + channel, both tasks run in parallel
             async let detectedAgents = detector.detectAll()
@@ -299,6 +329,9 @@ final class SkillManager {
             }
 
             skills = allSkills
+
+            // Load user-assigned tags from persistent store
+            await loadTags()
 
             // Restore transient fields that are lost when the skills array is replaced
             await restoreTransientSkillFields()
@@ -342,7 +375,10 @@ final class SkillManager {
 
     /// Start watching file system, monitor all relevant directories
     private func startWatching() {
-        var paths: [URL] = [SkillScanner.sharedSkillsURL]
+        var paths: [URL] = [
+            SkillScanner.sharedSkillsURL,
+            AgentType.sharedSkillsDirectoryURL,
+        ]
         for agent in AgentType.allCases {
             paths.append(agent.skillsDirectoryURL)
         }
@@ -423,16 +459,8 @@ final class SkillManager {
 
         let installation = latestSkill.installations.first { $0.agentType == agent }
 
-        // Protection: inherited installations cannot be toggled (inherited installations are managed by source Agent)
-        // For Codex: reading from ~/.agents/skills/ is not truly "inherited" - it's native support
-        let isTrulyInherited: Bool = {
-            guard let installation = installation else { return false }
-            if agent == .codex && installation.inheritedFrom == .codex {
-                return false
-            }
-            return installation.isInherited
-        }()
-        if isTrulyInherited {
+        // Inherited installations cannot be toggled here; they are managed at the source Agent.
+        if installation?.isInherited == true {
             print("[SkillManager] toggleAssignment blocked: truly inherited installation")
             return
         }
@@ -452,8 +480,8 @@ final class SkillManager {
     ///
     /// Installation flow:
     /// 1. Get tree hash (for lock file recording, subsequent update detection)
-    /// 2. Copy files to canonical directory (~/.agents/skills/<name>/)
-    /// 3. Create symlinks for selected Agents (skip Codex as it shares canonical directory)
+    /// 2. Copy files to canonical directory (~/.skilldeck/skills/<name>/)
+    /// 3. Create independently removable symlinks for every selected Agent, including Codex
     /// 4. Create/update lock file entry
     /// 5. Refresh UI
     ///
@@ -508,13 +536,41 @@ final class SkillManager {
         )
     }
 
+    /// Install a skill discovered via a Well-Known endpoint into the canonical directory
+    /// (~/.skilldeck/skills/<skillName>/) and create symlinks for the target agents.
+    func installWellKnownSkill(
+        from skillDir: URL,
+        skill: GitService.DiscoveredSkill,
+        source: String,
+        sourceUrl: String,
+        digest: String,
+        targetAgents: Set<AgentType>
+    ) async throws {
+        let now = ISO8601DateFormatter().string(from: Date())
+        let entry = LockEntry(
+            source: source,
+            sourceType: "well-known",
+            sourceUrl: sourceUrl,
+            skillPath: "\(skill.id)/SKILL.md",
+            skillFolderHash: digest,
+            installedAt: now,
+            updatedAt: now
+        )
+        try await persistInstalledSkillDirectory(
+            from: skillDir,
+            skillName: skill.id,
+            targetAgents: targetAgents,
+            lockEntry: entry
+        )
+    }
+
     // MARK: - Local Import
 
     /// Import a skill from a local directory on the filesystem
     ///
     /// Flow:
     /// 1. Validate the source directory exists and contains a parseable SKILL.md
-    /// 2. Copy the entire directory to canonical path (~/.agents/skills/<skillName>/)
+    /// 2. Copy the entire directory to canonical path (~/.skilldeck/skills/<skillName>/)
     /// 3. Create symlinks for selected Agents
     /// 4. Update lock file with sourceType "local" and source = original directory path
     /// 5. Refresh UI
@@ -576,7 +632,7 @@ final class SkillManager {
     /// Install a skill fetched from ClawHub into the canonical directory, then expose it to OpenClaw.
     ///
     /// We intentionally do not shell out to `clawhub install`. SkillDeck keeps its own canonical
-    /// storage model (`~/.agents/skills`) and only creates the OpenClaw symlink after the files are
+    /// storage model (`~/.skilldeck/skills`) and only creates the OpenClaw symlink after the files are
     /// safely persisted locally. This keeps installation behavior consistent with the rest of the app.
     func installClawHubSkill(
         slug: String,
@@ -668,6 +724,18 @@ final class SkillManager {
     func checkForUpdate(skill: Skill) async throws -> (hasUpdate: Bool, remoteHash: String?, remoteCommitHash: String?) {
         guard let lockEntry = skill.lockEntry else {
             return (false, nil, nil)
+        }
+        if lockEntry.sourceType == "well-known" {
+            do {
+                let (hasUpdate, latestDigest) = try await wellKnownService.checkUpdate(
+                    sourceUrl: lockEntry.sourceUrl,
+                    skillName: skill.id,
+                    currentDigest: lockEntry.skillFolderHash
+                )
+                return (hasUpdate, hasUpdate ? latestDigest : nil, nil)
+            } catch {
+                return (false, nil, nil)
+            }
         }
         guard lockEntry.sourceType == "github" else {
             return (false, nil, nil)
@@ -820,6 +888,36 @@ final class SkillManager {
                 continue
             }
         }
+
+        // Also check Well-Known skills
+        let wellKnownSkillsWithLock = skills.filter { skill in
+            skill.lockEntry?.sourceType == "well-known"
+        }
+        for skill in wellKnownSkillsWithLock {
+            updateStatuses[skill.id] = .checking
+        }
+        for skill in wellKnownSkillsWithLock {
+            guard let lockEntry = skill.lockEntry else { continue }
+            do {
+                let (hasUpdate, latestDigest) = try await wellKnownService.checkUpdate(
+                    sourceUrl: lockEntry.sourceUrl,
+                    skillName: skill.id,
+                    currentDigest: lockEntry.skillFolderHash
+                )
+                updateStatuses[skill.id] = hasUpdate ? .hasUpdate : .upToDate
+                if let index = skills.firstIndex(where: { $0.id == skill.id }) {
+                    skills[index].hasUpdate = hasUpdate
+                    skills[index].remoteTreeHash = hasUpdate ? latestDigest : nil
+                    if hasUpdate {
+                        cachedRemoteTreeHashes[skill.id] = latestDigest
+                    } else {
+                        cachedRemoteTreeHashes.removeValue(forKey: skill.id)
+                    }
+                }
+            } catch {
+                updateStatuses[skill.id] = .error(error.localizedDescription)
+            }
+        }
     }
 
     /// Execute update: overwrite local with remote files, update lock entry
@@ -829,6 +927,34 @@ final class SkillManager {
     ///   - remoteHash: Remote latest tree hash
     func updateSkill(_ skill: Skill, remoteHash: String) async throws {
         guard let lockEntry = skill.lockEntry else { return }
+
+        if lockEntry.sourceType == "well-known" {
+            let result = try await wellKnownService.discoverSkills(from: lockEntry.sourceUrl)
+            defer { try? FileManager.default.removeItem(at: result.tempDir) }
+            guard let entry = result.skills.first(where: { $0.skill.id == skill.id }) else {
+                throw WellKnownSkillService.WellKnownError.skillNotFound(skill.id)
+            }
+
+            let fm = FileManager.default
+            let canonicalDir = skill.canonicalURL
+            if fm.fileExists(atPath: canonicalDir.path) {
+                try fm.removeItem(at: canonicalDir)
+            }
+            try fm.copyItem(at: entry.localDir, to: canonicalDir)
+
+            let now = ISO8601DateFormatter().string(from: Date())
+            var updatedEntry = lockEntry
+            updatedEntry.skillFolderHash = remoteHash
+            updatedEntry.updatedAt = now
+            try await lockFileManager.updateEntry(skillName: skill.id, entry: updatedEntry)
+
+            updateStatuses[skill.id] = .notChecked
+            cachedRemoteTreeHashes.removeValue(forKey: skill.id)
+            cachedRemoteCommitHashes.removeValue(forKey: skill.id)
+            await refresh()
+            return
+        }
+
         guard lockEntry.sourceType == "github" else { return }
 
         // Derive folderPath from skillPath stored in lock file
@@ -1151,6 +1277,61 @@ final class SkillManager {
             $0.metadata.description.lowercased().contains(lowered) ||
             ($0.lockEntry?.source.lowercased().contains(lowered) ?? false) ||
             ($0.metadata.author?.lowercased().contains(lowered) ?? false)
+        }
+    }
+
+    // MARK: - Tag Management (user-assigned skill categorization)
+
+    /// Load tag data from persistent store into observable state
+    /// Called during refresh() to keep tag data in sync
+    private func loadTags() async {
+        await tagStore.load()
+        skillTags = await tagStore.getAllSkillTags()
+        knownTags = await tagStore.getAllKnownTags()
+    }
+
+    /// Get tags for a specific skill
+    func tags(for skillID: String) -> [String] {
+        skillTags[skillID] ?? []
+    }
+
+    /// Add a tag to a skill
+    /// If the tag doesn't exist in knownTags, it is automatically added
+    func addTag(_ tag: String, to skillID: String) async {
+        await tagStore.addTag(tag, to: skillID)
+        try? await tagStore.save()
+        // Sync observable state
+        skillTags = await tagStore.getAllSkillTags()
+        knownTags = await tagStore.getAllKnownTags()
+    }
+
+    /// Remove a tag from a skill
+    func removeTag(_ tag: String, from skillID: String) async {
+        await tagStore.removeTag(tag, from: skillID)
+        try? await tagStore.save()
+        skillTags = await tagStore.getAllSkillTags()
+    }
+
+    /// Create a new known tag (without assigning it to any skill yet)
+    func createKnownTag(_ tag: String) async {
+        await tagStore.addKnownTag(tag)
+        try? await tagStore.save()
+        knownTags = await tagStore.getAllKnownTags()
+    }
+
+    /// Delete a known tag and remove it from all skills that have it
+    func deleteKnownTag(_ tag: String) async {
+        await tagStore.removeKnownTag(tag)
+        try? await tagStore.save()
+        skillTags = await tagStore.getAllSkillTags()
+        knownTags = await tagStore.getAllKnownTags()
+    }
+
+    /// Filter skills by tag
+    /// Returns skills that have the specified tag assigned
+    func skills(withTag tag: String) -> [Skill] {
+        skills.filter { skill in
+            (skillTags[skill.id] ?? []).contains(tag)
         }
     }
 

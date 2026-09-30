@@ -11,16 +11,16 @@ struct ScopeBadge: View {
     let scope: SkillScope
 
     var body: some View {
-        HStack(spacing: 3) {
+        let color = Constants.ScopeColors.color(for: scope)
+        HStack(spacing: 4) {
             Image(systemName: iconName).appFont(.caption2)
             Text(scope.displayName).appFont(.caption)
                 .fontWeight(.medium)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(Constants.ScopeColors.color(for: scope).opacity(0.12))
-        .foregroundStyle(Constants.ScopeColors.color(for: scope))
-        .cornerRadius(4)
+        .padding(.horizontal, 8)
+        .frame(height: LiquidGlass.Metrics.metadataBadgeHeight)
+        .foregroundStyle(color)
+        .liquidGlassBadge(color: color)
     }
 
     private var iconName: String {

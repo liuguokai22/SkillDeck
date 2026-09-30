@@ -33,10 +33,21 @@ struct RegistrySkill: Identifiable, Hashable {
     /// Daily change delta (only present in hot data, nil for search/trending results)
     let change: Int?
 
-    /// Convenience: GitHub repository URL derived from source
-    /// Used when initiating the install flow (clone this repo to find the skill)
+    /// Whether this skill originates from a Well-Known endpoint rather than a GitHub repository
+    var isWellKnown: Bool {
+        WellKnownSkillService.isWellKnownSource(source)
+    }
+
+    /// Convenience: Repository or endpoint URL derived from source
+    /// Used when initiating the install flow or opening link in browser
     var repoURL: String {
-        "https://github.com/\(source)"
+        if isWellKnown {
+            if source.hasPrefix("http://") || source.hasPrefix("https://") {
+                return source
+            }
+            return "https://\(source)"
+        }
+        return "https://github.com/\(source)"
     }
 
     /// Formatted install count for display (e.g., "135.6K", "1.2M", "500")

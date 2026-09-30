@@ -24,41 +24,69 @@ struct SkillDetailView: View {
     /// Copy path button feedback state: shows green checkmark when true, auto-resets after 1.5 seconds
     @State private var pathCopied = false
 
+    /// New tag name input for the "create tag" popover
+    @State private var newTagName = ""
+
+    /// Whether the "add tag" popover is shown
+    @State private var showAddTagPopover = false
+
+    /// Tag pending permanent deletion
+    @State private var tagPendingDeletion: String?
+
+    /// Whether to show the delete tag confirmation alert
+    @State private var showDeleteTagAlert = false
+
+    /// Agent assignments are edited in a bounded popover instead of expanding every toggle in the
+    /// reading flow. The popover preserves its state while individual assignments change.
+    @State private var showAgentAssignmentPopover = false
+
     var body: some View {
         // SwiftUI version of guard-let: show empty state if skill doesn't exist
         if let skill = viewModel.skill(id: skillID) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Header info
+                // The detail pane is one continuous reading surface. Typography, spacing, and
+                // dividers express hierarchy; Liquid Glass is reserved for actions and toolbar
+                // controls instead of wrapping every section in a separate translucent card.
+                VStack(alignment: .leading, spacing: 0) {
                     headerSection(skill)
-
-                    // Package Info (with update status) - placed first, visible when entering detail page
-                    // Show full package info when lockEntry exists; otherwise show manual repo linking UI
-                    Divider()
-                    if let lockEntry = skill.lockEntry {
-                        lockFileSection(skill, lockEntry)
-                    } else {
-                        linkToRepoSection(skill)
-                    }
+                        .padding(.bottom, 22)
 
                     Divider()
 
-                    // Best-effort historical usage recovered from local Codex session logs.
-                    // Keep this above the long Agent list so first-time users can discover it.
-                    usageSection(skill)
+                    tagsSection(skill)
+                        .padding(.vertical, 18)
 
                     Divider()
 
-                    // Agent assignment section
-                    agentAssignmentSection()
+                    agentAssignmentSummarySection(skill)
+                        .padding(.vertical, 18)
 
                     Divider()
 
-                    // Markdown body
                     markdownSection(skill)
+                        .padding(.vertical, 22)
+
+                    Divider()
+
+                    Group {
+                        if let lockEntry = skill.lockEntry {
+                            lockFileSection(skill, lockEntry)
+                        } else {
+                            linkToRepoSection(skill)
+                        }
+                    }
+                    .padding(.vertical, 22)
+
+                    Divider()
+
+                    usageSection(skill)
+                        .padding(.top, 22)
                 }
-                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 24)
             }
+            .background(Color(nsColor: .textBackgroundColor))
             .navigationTitle(skill.displayName)
             .task(id: skillID) {
                 await skillManager.maybeShowTranslationPackPromptIfNeeded(
@@ -73,6 +101,8 @@ struct SkillDetailView: View {
                     } label: {
                         Image(systemName: "folder")
                     }
+                    .buttonStyle(.plain)
+                    .liquidGlassToolbarControl(width: LiquidGlass.Metrics.toolbarControlHeight)
                     .help("Reveal in Finder")
 
                     // Open in Terminal
@@ -81,6 +111,8 @@ struct SkillDetailView: View {
                     } label: {
                         Image(systemName: "terminal")
                     }
+                    .buttonStyle(.plain)
+                    .liquidGlassToolbarControl(width: LiquidGlass.Metrics.toolbarControlHeight)
                     .help("Open in Terminal")
 
                     // Edit button
@@ -92,6 +124,8 @@ struct SkillDetailView: View {
                     } label: {
                         Image(systemName: "pencil")
                     }
+                    .buttonStyle(.plain)
+                    .liquidGlassToolbarControl(width: LiquidGlass.Metrics.toolbarControlHeight)
                     .help("Edit SKILL.md")
                 }
             }
@@ -103,6 +137,26 @@ struct SkillDetailView: View {
                         isPresented: $viewModel.isEditing
                     )
                     .frame(minWidth: 700, minHeight: 500)
+                }
+            }
+            .alert(
+                L10n.string(L10nKeys.tagsRemoveTag, bundle: localizationBundle, locale: locale),
+                isPresented: $showDeleteTagAlert
+            ) {
+                Button(L10n.string(L10nKeys.commonCancel, bundle: localizationBundle, locale: locale), role: .cancel) {
+                    tagPendingDeletion = nil
+                }
+                Button(L10n.string(L10nKeys.commonDelete, bundle: localizationBundle, locale: locale), role: .destructive) {
+                    if let tag = tagPendingDeletion {
+                        Task {
+                            await skillManager.deleteKnownTag(tag)
+                        }
+                    }
+                    tagPendingDeletion = nil
+                }
+            } message: {
+                if let tag = tagPendingDeletion {
+                    Text(String(format: L10n.string(L10nKeys.tagsDeleteConfirm, bundle: localizationBundle, locale: locale), tag))
                 }
             }
         } else {
@@ -134,6 +188,7 @@ struct SkillDetailView: View {
             if !skill.metadata.description.isEmpty {
                 Text(skill.metadata.description).appFont(.body)
                     .foregroundStyle(.secondary)
+                    .lineLimit(3)
             }
 
             // Metadata row
@@ -192,14 +247,251 @@ struct SkillDetailView: View {
         }
     }
 
-    /// Agent assignment section (F06)
+    /// Tags section: displays and manages user-assigned tags for this skill
+    /// Shows current tags as removable capsules + a button to add/create tags
     @ViewBuilder
-    private func agentAssignmentSection() -> some View {
+    private func tagsSection(_ skill: Skill) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Agent Assignment").appFont(.headline)
+            LText(key: L10nKeys.tagsSectionTitle)
+                .appFont(.headline)
 
-            AgentToggleView(skillID: skillID, viewModel: viewModel)
+            let currentTags = skillManager.skillTags[skill.id] ?? []
+
+            // Display current tags as removable capsules
+            if currentTags.isEmpty {
+                LText(key: L10nKeys.tagsEmpty)
+                    .appFont(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                // FlowLayout-like wrapping: use multiple HStacks in a VStack
+                // For simplicity, use a horizontal scroll view with wrapping
+                TagFlowView(tags: currentTags) { tag in
+                    HStack(spacing: 4) {
+                        Text(tag)
+                            .appFont(.caption)
+                        Button {
+                            Task { await skillManager.removeTag(tag, from: skill.id) }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .appFont(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.accentColor.opacity(0.12))
+                    .foregroundStyle(Color.accentColor)
+                    .clipShape(Capsule())
+                }
+            }
+
+            // Add tag button with popover
+            Button {
+                showAddTagPopover = true
+            } label: {
+                Label {
+                    LText(key: L10nKeys.tagsAddTag)
+                } icon: {
+                    Image(systemName: "plus.circle")
+                }
+                .appFont(.subheadline)
+            }
+            .liquidGlassButtonStyle()
+            .controlSize(.small)
+            .popover(isPresented: $showAddTagPopover, arrowEdge: .bottom) {
+                addTagPopoverContent(skill: skill)
+            }
         }
+    }
+
+    /// Popover content for adding or creating tags
+    /// Shows a list of existing known tags (with checkmarks for already-assigned ones)
+    /// plus a text field to create a new tag
+    @ViewBuilder
+    private func addTagPopoverContent(skill: Skill) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LText(key: L10nKeys.tagsSectionManageTitle)
+                .appFont(.headline)
+                .padding(.bottom, 4)
+
+            let currentTags = skillManager.skillTags[skill.id] ?? []
+
+            // List of existing known tags with toggle behavior
+            if !skillManager.knownTags.isEmpty {
+                ForEach(skillManager.knownTags, id: \.self) { tag in
+                    let isAssigned = currentTags.contains(tag)
+                    HStack(spacing: 8) {
+                        Button {
+                            Task {
+                                if isAssigned {
+                                    await skillManager.removeTag(tag, from: skill.id)
+                                } else {
+                                    await skillManager.addTag(tag, to: skill.id)
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: isAssigned ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(isAssigned ? Color.accentColor : Color.secondary)
+                                Text(tag)
+                                    .appFont(.body)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(role: .destructive) {
+                            tagPendingDeletion = tag
+                            showDeleteTagAlert = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .appFont(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                        .help(L10n.string(L10nKeys.tagsRemoveTag, bundle: localizationBundle, locale: locale))
+                    }
+                }
+
+                Divider()
+            }
+
+            // Create new tag section
+            HStack(spacing: 8) {
+                TextField(
+                    L10n.string(L10nKeys.tagsCreatePlaceholder, bundle: localizationBundle, locale: locale),
+                    text: $newTagName
+                )
+                .textFieldStyle(.roundedBorder)
+                .onSubmit {
+                    createAndAssignTag(to: skill)
+                }
+
+                Button {
+                    createAndAssignTag(to: skill)
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .disabled(newTagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding()
+        .frame(width: 250)
+    }
+
+    /// Helper: create a new tag and assign it to the current skill
+    private func createAndAssignTag(to skill: Skill) {
+        let trimmed = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        Task {
+            await skillManager.addTag(trimmed, to: skill.id)
+            newTagName = ""
+        }
+    }
+
+    /// Compact assignment summary shown near the top of the detail page.
+    ///
+    /// The complete toggle list is a bounded task, so it lives in a popover. This keeps the
+    /// documentation close to the introduction instead of making every skill page begin with a
+    /// long list of Agent switches.
+    @ViewBuilder
+    private func agentAssignmentSummarySection(_ skill: Skill) -> some View {
+        let assignedAgents = assignedAgentTypes(for: skill)
+
+        VStack(alignment: .leading, spacing: 10) {
+            Text(localized(L10nKeys.agentAssignmentTitle))
+                .appFont(.headline)
+
+            HStack(spacing: 12) {
+                HStack(spacing: 6) {
+                    ForEach(Array(assignedAgents.prefix(6))) { agentType in
+                        AgentBrandIcon(agentType: agentType, size: 17)
+                            .frame(width: 18)
+                            .help(agentType.displayName)
+                    }
+
+                    if assignedAgents.count > 6 {
+                        Text("+\(assignedAgents.count - 6)")
+                            .appFont(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(agentAssignmentAccessibilityLabel(assignedAgents))
+
+                Text(
+                    String(
+                        format: localized(L10nKeys.agentAssignmentSummary),
+                        assignedAgents.count
+                    )
+                )
+                .appFont(.subheadline)
+                .foregroundStyle(.secondary)
+
+                Spacer(minLength: 16)
+
+                Button {
+                    showAgentAssignmentPopover = true
+                } label: {
+                    Label(
+                        localized(L10nKeys.agentAssignmentManage),
+                        systemImage: "slider.horizontal.3"
+                    )
+                }
+                .liquidGlassButtonStyle()
+                .controlSize(.small)
+                .popover(isPresented: $showAgentAssignmentPopover, arrowEdge: .trailing) {
+                    agentAssignmentPopover
+                }
+            }
+        }
+    }
+
+    /// The complete Agent assignment editor presented from the compact summary row.
+    private var agentAssignmentPopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(localized(L10nKeys.agentAssignmentTitle))
+                    .appFont(.headline)
+
+                Spacer()
+
+                Button {
+                    showAgentAssignmentPopover = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(localized(L10nKeys.commonClose))
+            }
+
+            Divider()
+
+            ScrollView {
+                AgentToggleView(skillID: skillID, viewModel: viewModel)
+            }
+        }
+        .padding(16)
+        .frame(width: 380, height: 420)
+    }
+
+    /// Returns unique assigned Agents in the same stable order used elsewhere in the app.
+    private func assignedAgentTypes(for skill: Skill) -> [AgentType] {
+        AgentType.allCases.filter { agentType in
+            skill.installations.contains { $0.agentType == agentType }
+        }
+    }
+
+    /// VoiceOver receives Agent names rather than an unexplained sequence of colored symbols.
+    private func agentAssignmentAccessibilityLabel(_ agents: [AgentType]) -> String {
+        guard !agents.isEmpty else {
+            return localized(L10nKeys.agentAssignmentNone)
+        }
+
+        return agents.map(\.displayName).joined(separator: ", ")
     }
 
     /// Usage evidence grouped by Agent. Codex is the first supported provider.
@@ -213,8 +505,7 @@ struct SkillDetailView: View {
                 .appFont(.headline)
 
             HStack {
-                Image(systemName: AgentType.codex.iconName)
-                    .foregroundStyle(Constants.AgentColors.color(for: .codex))
+                AgentBrandIcon(agentType: .codex, size: 19)
                     .frame(width: 20)
 
                 Text(AgentType.codex.displayName)
@@ -316,7 +607,7 @@ struct SkillDetailView: View {
     @ViewBuilder
     private func markdownSection(_ skill: Skill) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Documentation").appFont(.headline)
+            Text(localized(L10nKeys.documentationSectionTitle)).appFont(.headline)
 
             if skill.markdownBody.isEmpty {
                 Text("No documentation available")
@@ -327,10 +618,7 @@ struct SkillDetailView: View {
                     markdownText: skill.markdownBody,
                     showsChineseTranslation: AppLanguage(storedRawValue: appLanguageRaw).shouldTranslateSkillContent(locale: locale)
                 )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .cornerRadius(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -440,6 +728,10 @@ struct SkillDetailView: View {
                             .textSelection(.enabled)
                     } else if supportsGitUpdates(lockEntry) {
                         Text("Tree Hash").foregroundStyle(.secondary)
+                        Text(lockEntry.skillFolderHash).appFont(.body, design: .monospaced)
+                            .textSelection(.enabled)
+                    } else if lockEntry.sourceType == "well-known" {
+                        Text("Digest").foregroundStyle(.secondary)
                         Text(lockEntry.skillFolderHash).appFont(.body, design: .monospaced)
                             .textSelection(.enabled)
                     } else {
@@ -623,8 +915,12 @@ struct SkillDetailView: View {
         lockEntry.sourceType == "github"
     }
 
-    /// Adjust the UI label so marketplace installs are not described as a Git repository.
+    /// Adjust the UI label so marketplace and endpoint installs are not described as a Git repository.
     private func repositoryLabel(for lockEntry: LockEntry) -> String {
-        lockEntry.sourceType == "clawhub" ? "Marketplace Page" : "Repository"
+        switch lockEntry.sourceType {
+        case "clawhub": return "Marketplace Page"
+        case "well-known": return "Endpoint URL"
+        default: return "Repository"
+        }
     }
 }

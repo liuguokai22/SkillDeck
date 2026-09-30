@@ -100,7 +100,7 @@ swift test
 | Agent | Skills Directory | Detection | Skills Reading Priority |
 |-------|-----------------|-----------|------------------------|
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `~/.claude/skills/` | `claude` binary + `~/.claude/` dir | Own directory only |
-| [Codex](https://github.com/openai/codex) | `~/.codex/skills/` | `codex` binary | Own → `~/.agents/skills/` (shared global) |
+| [Codex](https://github.com/openai/codex) | `~/.codex/skills/` | `codex` binary | SkillDeck uses a removable direct link; external `~/.agents/skills/` entries remain inherited |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `~/.gemini/skills/` | `gemini` binary + `~/.gemini/` dir | Own directory only |
 | [Copilot CLI](https://docs.github.com/en/copilot/using-github-copilot/using-github-copilot-in-the-command-line) | `~/.copilot/skills/` | `gh` binary | Own → `~/.claude/skills/` |
 | [OpenCode](https://opencode.ai) | `~/.config/opencode/skills/` | `opencode` binary | Own → `~/.claude/skills/` → `~/.agents/skills/` |
@@ -121,6 +121,11 @@ Views → ViewModels (@Observable) → SkillManager → Services (actor)
 ```
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full architecture guide, design decisions, and development setup.
+
+SkillDeck stores the real files for managed skills in `~/.skilldeck/skills/`. Each selected Agent,
+including Codex, receives an independently removable symlink in its own skills directory. Existing
+skills from the earlier `~/.agents/skills/` layout are migrated once and retained in a recoverable
+backup at `~/.skilldeck/migration-backup-v1/`.
 
 ## Contributing
 

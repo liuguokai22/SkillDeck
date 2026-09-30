@@ -86,7 +86,7 @@ struct LocalImportView: View {
             Button("Select Folder...") {
                 viewModel.openFolderPicker()
             }
-            .buttonStyle(.borderedProminent)
+            .liquidGlassButtonStyle(.prominent)
 
             Spacer()
         }
@@ -175,7 +175,10 @@ struct LocalImportView: View {
                                 get: { viewModel.selectedAgents.contains(agentType) },
                                 set: { _ in viewModel.toggleAgentSelection(agentType) }
                             )) {
-                                Label(agentType.displayName, systemImage: agentType.iconName).appFont(.caption)
+                                HStack(spacing: 5) {
+                                    AgentBrandIcon(agentType: agentType, size: 14)
+                                    Text(agentType.displayName).appFont(.caption)
+                                }
                             }
                             .toggleStyle(.checkbox)
                             // Uninstalled Agents have reduced opacity but are still selectable
@@ -192,7 +195,7 @@ struct LocalImportView: View {
                         Task { await viewModel.importSkill() }
                     }
                     .disabled(viewModel.selectedAgents.isEmpty)
-                    .buttonStyle(.borderedProminent)
+                    .liquidGlassButtonStyle(.prominent)
                 }
             }
             .padding()
@@ -234,7 +237,7 @@ struct LocalImportView: View {
                 Button("Done") {
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent)
+                .liquidGlassButtonStyle(.prominent)
             }
 
             Spacer()

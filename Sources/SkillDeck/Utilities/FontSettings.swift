@@ -5,6 +5,9 @@ enum FontSettings {
     static let familyKey = "uiFontFamily"
     static let sizeKey = "uiFontSize"
     static let systemFontFamily = "System"
+    /// Match Apple's Mail typography by using the native macOS font cascade:
+    /// SF Pro for Latin text and PingFang SC for Simplified Chinese text.
+    static let defaultFontFamily = systemFontFamily
     static let defaultFontSize: Double = 13
     static let minFontSize: Double = 11
     static let maxFontSize: Double = 24

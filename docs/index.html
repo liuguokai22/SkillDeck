@@ -829,7 +829,7 @@ footer.foot {
       </li>
       <li>
         <p class="name">One-Click Install<small>Git clone to symlink</small></p>
-        <p class="what">Paste a GitHub URL or pick from the registry. SkillDeck clones the repo, parses SKILL.md frontmatter, creates canonical storage in <code>~/.agents/skills/</code>, symlinks to each agent, and updates the lock file — all in a single operation.</p>
+        <p class="what">Paste a GitHub URL or pick from the registry. SkillDeck clones the repo, parses SKILL.md frontmatter, creates canonical storage in <code>~/.skilldeck/skills/</code>, symlinks to each agent, and updates the lock file — all in a single operation.</p>
       </li>
       <li>
         <p class="name">Update Checker<small>Remote diff at a glance</small></p>
@@ -932,7 +932,7 @@ footer.foot {
       </div>
       <div class="faq-pair">
         <dt>Where are skills stored?</dt>
-        <dd>Canonical files live in <code>~/.agents/skills/&lt;name&gt;/SKILL.md</code>. Each agent gets a symlink to its own directory — for example, <code>~/.claude/skills/&lt;name&gt;</code> points to the canonical path. The lock file at <code>~/.agents/.skill-lock.json</code> tracks metadata.</dd>
+        <dd>Canonical files live in <code>~/.skilldeck/skills/&lt;name&gt;/SKILL.md</code>. Each agent, including Codex, gets an independently removable symlink in its own directory — for example, <code>~/.claude/skills/&lt;name&gt;</code> points to the canonical path. The lock file at <code>~/.agents/.skill-lock.json</code> tracks metadata.</dd>
       </div>
       <div class="faq-pair">
         <dt>Do I need all 14 agents installed?</dt>

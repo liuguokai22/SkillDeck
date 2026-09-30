@@ -113,8 +113,24 @@ final class SkillInstallViewModel: Identifiable {
     /// Git operation service
     private let gitService = GitService()
 
+    /// Well-Known operation service
+    private let wellKnownService = WellKnownSkillService()
+
+    /// Installation source type (GitHub or Well-Known endpoint)
+    enum InstallSourceType {
+        case github
+        case wellKnown
+    }
+    private(set) var installSourceType: InstallSourceType = .github
+
     /// Cloned temporary directory URL (persisted between fetch and install, cleaned up when sheet closes)
     private var tempRepoDir: URL?
+
+    /// Well-Known temporary directory URL
+    private var wellKnownTempDir: URL?
+
+    /// Map of folderPath to Well-Known skill entry metadata, local directory, and indexURL
+    private var wellKnownEntries: [String: (digest: String, localDir: URL, unifiedSkill: WellKnownSkillService.UnifiedWellKnownSkill, indexURL: URL)] = [:]
 
     /// Normalized repository URL and source identifier
     private var normalizedRepoURL: String = ""
@@ -161,8 +177,67 @@ final class SkillInstallViewModel: Identifiable {
     /// 6. Transition to selection phase
     func fetchRepository() async {
         phase = .fetching
-        progressMessage = "Validating URL..."
+        progressMessage = "Validating source..."
 
+        let trimmed = repoURLInput.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Branch 1: Well-Known endpoint (e.g. uizze.sh, uizze.sh/ios-design, https://uizze.sh)
+        if WellKnownSkillService.isWellKnownSource(trimmed) {
+            installSourceType = .wellKnown
+            progressMessage = "Discovering skills from well-known endpoint..."
+
+            do {
+                let (_, skillSelector, _, _) = WellKnownSkillService.normalizeInput(trimmed)
+                let result = try await wellKnownService.discoverSkills(from: trimmed)
+                normalizedSource = result.source
+                normalizedRepoURL = result.sourceUrl
+                wellKnownTempDir = result.tempDir
+
+                wellKnownEntries.removeAll()
+                var discoveredList: [GitService.DiscoveredSkill] = []
+                for entry in result.skills {
+                    discoveredList.append(entry.skill)
+                    wellKnownEntries[entry.skill.folderPath] = (
+                        digest: entry.digest,
+                        localDir: entry.localDir,
+                        unifiedSkill: entry.unifiedSkill,
+                        indexURL: result.indexURL
+                    )
+                }
+
+                guard !discoveredList.isEmpty else {
+                    phase = .error("No skills found at this endpoint.")
+                    return
+                }
+
+                discoveredSkills = deduplicateSkillNames(discoveredList)
+                alreadyInstalledNames = Set(skillManager.skills.map(\.id))
+
+                let effectiveTargetId = targetSkillId ?? skillSelector
+                if let targetId = effectiveTargetId {
+                    if let targetSkill = discoveredSkills.first(where: { $0.id == targetId && !alreadyInstalledNames.contains($0.id) }) {
+                        selectedSkillPaths = [targetSkill.folderPath]
+                    } else {
+                        selectedSkillPaths = []
+                    }
+                } else {
+                    selectedSkillPaths = Set(discoveredSkills.filter { !alreadyInstalledNames.contains($0.id) }
+                        .map(\.folderPath))
+                }
+
+                await skillManager.saveRepoHistory(source: normalizedSource, sourceUrl: normalizedRepoURL)
+                phase = .selectSkills
+            } catch is CancellationError {
+                // Closing the sheet cancels its task; this is not a server failure.
+                return
+            } catch {
+                phase = .error(error.localizedDescription)
+            }
+            return
+        }
+
+        // Branch 2: GitHub repository (git clone)
+        installSourceType = .github
         do {
             // 1. Normalize URL
             let (repoURL, source) = try GitService.normalizeRepoURL(repoURLInput)
@@ -232,6 +307,49 @@ final class SkillInstallViewModel: Identifiable {
     /// Install selected skills one by one, updating progress message
     func installSelected() async {
         guard !selectedSkillPaths.isEmpty else { return }
+
+        // Well-Known branch
+        if installSourceType == .wellKnown {
+            phase = .installing
+            installedCount = 0
+            var failedSkills: [(name: String, error: String)] = []
+            let total = selectedSkillPaths.count
+
+            for skill in discoveredSkills where selectedSkillPaths.contains(skill.folderPath) {
+                progressMessage = "Installing \(skill.id) (\(installedCount + 1)/\(total))..."
+
+                guard let info = wellKnownEntries[skill.folderPath] else { continue }
+                do {
+                    let readyDir = try await wellKnownService.ensureSkillDownloaded(
+                        skill: info.unifiedSkill,
+                        targetDir: info.localDir,
+                        indexURL: info.indexURL
+                    )
+                    try await skillManager.installWellKnownSkill(
+                        from: readyDir,
+                        skill: skill,
+                        source: normalizedSource,
+                        sourceUrl: normalizedRepoURL,
+                        digest: info.digest,
+                        targetAgents: selectedAgents
+                    )
+                    installedCount += 1
+                } catch {
+                    failedSkills.append((name: skill.id, error: error.localizedDescription))
+                    continue
+                }
+            }
+
+            if !failedSkills.isEmpty && installedCount == 0 {
+                let errorMessages = failedSkills.map { "\($0.name): \($0.error)" }.joined(separator: "\n")
+                phase = .error("Failed to install skills:\n\(errorMessages)")
+            } else {
+                phase = .completed
+            }
+            return
+        }
+
+        // GitHub branch
         guard let repoDir = tempRepoDir else {
             phase = .error("Repository data not available. Please scan again.")
             return
@@ -281,6 +399,11 @@ final class SkillInstallViewModel: Identifiable {
             Task {
                 await gitService.cleanupTempDirectory(dir)
             }
+        }
+        if let wellKnownTempDir {
+            let dir = wellKnownTempDir
+            self.wellKnownTempDir = nil
+            try? FileManager.default.removeItem(at: dir)
         }
     }
 

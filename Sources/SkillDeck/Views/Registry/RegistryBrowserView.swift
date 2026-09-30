@@ -43,41 +43,13 @@ struct RegistryBrowserView: View {
                 skillList
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(LiquidGlass.Surface.content)
         .navigationTitle("Skill Registry")
-        // .searchable adds a native macOS search bar in the toolbar area
-        // The text binding ($viewModel.searchText) updates as user types.
-        // `prompt` is the placeholder text shown when the search field is empty.
-        // This is the standard macOS search pattern (similar to Finder's search bar).
-        .searchable(text: $viewModel.searchText, prompt: "Search skills.sh...")
         // .onChange(of:) triggers closure when the observed value changes
         // Here we call the debounced search handler on each keystroke
         .onChange(of: viewModel.searchText) { _, _ in
             viewModel.onSearchTextChanged()
-        }
-        .toolbar {
-            // Refresh button in toolbar
-            ToolbarItem {
-                Button {
-                    Task { await viewModel.refresh() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help("Refresh registry data")
-            }
-
-            // "Open in Browser" button — opens skills.sh in the default web browser
-            ToolbarItem {
-                Button {
-                    // NSWorkspace.shared.open() opens a URL in the default browser
-                    // This is macOS-specific API (similar to Desktop.browse() in Java)
-                    if let url = URL(string: "https://skills.sh") {
-                        NSWorkspace.shared.open(url)
-                    }
-                } label: {
-                    Image(systemName: "safari")
-                }
-                .help("Open skills.sh in browser")
-            }
         }
         // .task runs async code when the view first appears
         .task {
@@ -107,34 +79,34 @@ struct RegistryBrowserView: View {
     /// Selected tab has a highlighted background; clicking switches the leaderboard content.
     /// CaseIterable allows iterating through all enum cases with ForEach.
     private var categoryTabs: some View {
-        HStack(spacing: 4) {
-            ForEach(SkillRegistryService.LeaderboardCategory.allCases) { category in
-                Button {
-                    Task { await viewModel.selectCategory(category) }
-                } label: {
-                    // Label combines icon (SF Symbol) and text
-                    Label(category.displayName, systemImage: category.iconName).appFont(.subheadline)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            // Highlight selected tab with accent color at low opacity
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(
-                                    viewModel.selectedCategory == category
-                                        ? Color.accentColor.opacity(0.12)
-                                        : Color.clear
-                                )
-                        )
+        LiquidGlassGroup(spacing: 4) {
+            HStack(spacing: 6) {
+                ForEach(SkillRegistryService.LeaderboardCategory.allCases) { category in
+                    Button {
+                        Task { await viewModel.selectCategory(category) }
+                    } label: {
+                        // The category stays a familiar text-and-symbol control while the shared
+                        // capsule surface provides native Liquid Glass interaction on macOS 26+.
+                        Label(category.displayName, systemImage: category.iconName).appFont(.subheadline)
+                            .fontWeight(viewModel.selectedCategory == category ? .semibold : .regular)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .liquidGlassControl(
+                                tint: viewModel.selectedCategory == category
+                                    ? Color.accentColor.opacity(0.24)
+                                    : nil
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(viewModel.selectedCategory == category ? .isSelected : [])
                 }
-                // .plain removes default button chrome (border, press effect)
-                .buttonStyle(.plain)
-            }
-            Spacer()
+                Spacer()
 
-            // Show loading indicator inline when refreshing with existing data
-            if viewModel.isLoading && !viewModel.displayedSkills.isEmpty {
-                ProgressView()
-                    .controlSize(.small)
+                // Show loading indicator inline when refreshing with existing data
+                if viewModel.isLoading && !viewModel.displayedSkills.isEmpty {
+                    ProgressView()
+                        .controlSize(.small)
+                }
             }
         }
         .padding(.horizontal)
@@ -174,6 +146,8 @@ struct RegistryBrowserView: View {
         }
         // .inset style with alternating row backgrounds — standard macOS list look
         .listStyle(.inset(alternatesRowBackgrounds: true))
+        .scrollContentBackground(.hidden)
+        .background(LiquidGlass.Surface.content)
     }
 
     // MARK: - Empty State
@@ -217,7 +191,7 @@ struct RegistryBrowserView: View {
                 Button("Try Again") {
                     Task { await viewModel.refresh() }
                 }
-                .buttonStyle(.bordered)
+                .liquidGlassButtonStyle()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {

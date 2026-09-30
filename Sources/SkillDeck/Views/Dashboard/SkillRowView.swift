@@ -13,11 +13,9 @@ struct SkillRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // First row: name + badges
+            // First row: name, update state, and Agent availability.
             HStack {
                 Text(skill.displayName).appFont(.headline)
-
-                ScopeBadge(scope: skill.scope)
 
                 // F12: Display different indicator icons based on update check status
                 updateStatusIndicator
@@ -29,8 +27,7 @@ struct SkillRowView: View {
                 // Inherited installation icons have reduced opacity, hover tooltip shows source
                 HStack(spacing: 4) {
                     ForEach(skill.installations) { installation in
-                        Image(systemName: installation.agentType.iconName).appFont(.caption)
-                            .foregroundStyle(Constants.AgentColors.color(for: installation.agentType))
+                        AgentBrandIcon(agentType: installation.agentType, size: 14)
                             // Reduce opacity for inherited installation icons to visually distinguish from direct installations
                             .opacity(installation.isTrulyInherited ? 0.4 : 1.0)
                             // Hover tooltip: inherited installation shows "Copilot CLI (via ~/.claude/skills)"
@@ -63,6 +60,23 @@ struct SkillRowView: View {
                 if let lockEntry = skill.lockEntry {
                     Label(lockEntry.source, systemImage: "link").appFont(.caption)
                         .foregroundStyle(.tertiary)
+                }
+            }
+
+            // Fourth row: scope first, followed by user-defined tags. Keeping these related
+            // classification tokens on one row avoids making the scope look like part of the title.
+            let tags = skillManager.skillTags[skill.id] ?? []
+            HStack(spacing: 5) {
+                ScopeBadge(scope: skill.scope)
+
+                ForEach(tags, id: \.self) { tag in
+                    Text(tag)
+                        .appFont(.caption2)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 7)
+                        .frame(height: LiquidGlass.Metrics.metadataBadgeHeight)
+                        .foregroundStyle(Color.accentColor)
+                        .liquidGlassBadge(color: .accentColor)
                 }
             }
         }

@@ -89,7 +89,13 @@ actor NetworkSessionProvider {
         let configuration = URLSessionConfiguration.default
 
         // connectionProxyDictionary is read by CFNetwork and applies to all requests in this URLSession.
-        configuration.connectionProxyDictionary = ProxyConfigurationBuilder.build(from: settings, password: password)
+        // If custom proxy is not enabled, keep connectionProxyDictionary nil so that URLSession
+        // uses macOS default system proxy settings. Setting it to an empty dictionary disables all proxies.
+        if settings.isEnabled {
+            configuration.connectionProxyDictionary = ProxyConfigurationBuilder.build(from: settings, password: password)
+        } else {
+            configuration.connectionProxyDictionary = nil
+        }
         return configuration
     }
 

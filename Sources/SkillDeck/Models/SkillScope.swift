@@ -4,7 +4,7 @@ import Foundation
 /// Swift enums can have associated values, which Java/Go enums cannot do
 /// Similar to Rust enum / Go tagged union
 enum SkillScope: Hashable, Identifiable {
-    /// Shared global: located in ~/.agents/skills/, can be referenced by all Agents via symlink
+    /// Shared global: located in ~/.skilldeck/skills/, referenced by selected Agents via symlink
     case sharedGlobal
 
     /// Agent local: only exists in a specific Agent's skills directory (not symlink)

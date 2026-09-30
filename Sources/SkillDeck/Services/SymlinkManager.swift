@@ -3,9 +3,9 @@ import Foundation
 /// SymlinkManager is responsible for creating and removing symlinks (F06 Agent Assignment)
 ///
 /// Core Concepts:
-/// - The "real copy" of all skills is stored in ~/.agents/skills/ (canonical location)
-/// - Each Agent references the shared skill via symlink
-/// - Example: ~/.claude/skills/agent-notifier -> ~/.agents/skills/agent-notifier
+/// - The "real copy" of all skills is stored in ~/.skilldeck/skills/ (canonical location)
+/// - Each Agent references the SkillDeck-owned copy via an independently removable symlink
+/// - Example: ~/.claude/skills/agent-notifier -> ~/.skilldeck/skills/agent-notifier
 ///
 /// symlink is similar to Linux/macOS `ln -s`, a special file pointing to another file/directory
 enum SymlinkManager {
@@ -33,7 +33,7 @@ enum SymlinkManager {
     /// Create symlink for skill to specified Agent's skills directory
     ///
     /// - Parameters:
-    ///   - source: canonical path of the skill (e.g. ~/.agents/skills/agent-notifier/)
+    ///   - source: canonical path of the skill (e.g. ~/.skilldeck/skills/agent-notifier/)
     ///   - agent: target Agent type
     /// - Throws: SymlinkError
     ///
@@ -104,8 +104,8 @@ enum SymlinkManager {
     ///
     /// Use URL.resolvingSymlinksInPath() instead of single-level destinationOfSymbolicLink,
     /// to correctly handle multi-level symlink chains. Example:
-    ///   ~/.copilot/skills/foo → ~/.claude/skills/foo → ~/.agents/skills/foo
-    /// resolvingSymlinksInPath() will recursively resolve to the final real path ~/.agents/skills/foo
+    ///   ~/.copilot/skills/foo → ~/.claude/skills/foo → ~/.skilldeck/skills/foo
+    /// resolvingSymlinksInPath() recursively resolves to the SkillDeck-owned copy.
     ///
     /// If not a symlink, return original path (standardized)
     static func resolveSymlink(at url: URL) -> URL {

@@ -218,11 +218,12 @@ final class SkillManagerToggleTests: XCTestCase {
         XCTAssertNil(copilotAfter, "Copilot inherited installation should also be removed")
     }
 
-    /// 测试 Codex 的 ~/.agents/skills/ 不被视为继承安装
+    /// 测试 Codex 从外部 ~/.agents/skills/ 读取到的 Skill 属于只读继承安装
     ///
-    /// 场景：Codex 原生支持 ~/.agents/skills/，虽然 findInstallations 返回 isInherited=true，
-    /// 但 inheritedFrom=.codex，在 UI 层和 SkillManager 层会被视为非继承
-    func testCodexAgentsSkillsIsNotInherited() async throws {
+    /// SkillDeck 自己的主文件已经迁至 ~/.skilldeck/skills/。如果其他工具仍把 Skill 放在
+    /// ~/.agents/skills/，Codex 可以读取它，但 SkillDeck 不能把这个兼容来源伪装成可删除的
+    /// Codex 直接链接。
+    func testCodexAgentsSkillsIsInheritedAndReadOnly() async throws {
         // Given: 在 ~/.agents/skills/ 创建 skill（模拟 Codex 原生读取）
         let agentsSkillsDir = AgentType.sharedSkillsDirectoryURL
         let skillDir = agentsSkillsDir.appendingPathComponent(uniqueSkillName)
@@ -244,18 +245,13 @@ final class SkillManagerToggleTests: XCTestCase {
             canonicalURL: skillDir
         )
 
-        // Then: 验证 installations 可以正常获取（没有 crash）
-        XCTAssertNotNil(installations)
-
-        // 验证 Codex 的 installation 的 inheritedFrom 是 .codex
-        // 这允许 UI 层和 SkillManager 将其视为非继承安装
+        // Then: Codex 能读取，但这是来自兼容目录的继承安装，UI 应保持只读。
         let codexInstallation = installations.first { $0.agentType == .codex }
         XCTAssertNotNil(codexInstallation, "Should find Codex installation")
+        XCTAssertTrue(codexInstallation?.isInherited ?? false)
+        XCTAssertTrue(codexInstallation?.isTrulyInherited ?? false)
         XCTAssertEqual(codexInstallation?.inheritedFrom, .codex,
                        "Codex installation from ~/.agents/skills/ should have inheritedFrom=.codex")
-
-        // 注意：findInstallations 返回的 isInherited 为 true，但 UI/SkillManager 会特殊处理 inheritedFrom=.codex 的情况
-        // 这是 isTrulyInherited 逻辑的一部分
     }
 
     // MARK: - Edge Cases

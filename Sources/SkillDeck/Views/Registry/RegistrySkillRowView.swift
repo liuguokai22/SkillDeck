@@ -83,8 +83,9 @@ struct RegistrySkillRowView: View {
             Button("Install") {
                 onInstall()
             }
-            // .bordered gives the button a visible border (macOS standard secondary button style)
-            .buttonStyle(.bordered)
+            // Native Liquid Glass communicates a secondary action on macOS 26+; the shared
+            // modifier falls back to a bordered button on macOS 14 and 15.
+            .liquidGlassButtonStyle()
             // .controlSize(.small) makes the button compact — appropriate for list rows
             .controlSize(.small)
             // Disabled when skill is already installed (prevents duplicate installs)

@@ -98,7 +98,7 @@ swift test
 | 代理 | 技能目录 | 检测方式 | 技能读取优先级 |
 |------|---------|---------|---------------|
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `~/.claude/skills/` | `claude` 二进制文件 + `~/.claude/` 目录 | 仅自身目录 |
-| [Codex](https://github.com/openai/codex) | `~/.codex/skills/` | `codex` 二进制文件 | 自身 → `~/.agents/skills/`（共享全局） |
+| [Codex](https://github.com/openai/codex) | `~/.codex/skills/` | `codex` 二进制文件 | SkillDeck 使用可独立删除的直接软链接；外部 `~/.agents/skills/` 条目仍属于继承来源 |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `~/.gemini/skills/` | `gemini` 二进制文件 + `~/.gemini/` 目录 | 仅自身目录 |
 | [Copilot CLI](https://docs.github.com/en/copilot/using-github-copilot/using-github-copilot-in-the-command-line) | `~/.copilot/skills/` | `gh` 二进制文件 | 自身 → `~/.claude/skills/` |
 | [OpenCode](https://opencode.ai) | `~/.config/opencode/skills/` | `opencode` 二进制文件 | 自身 → `~/.claude/skills/` → `~/.agents/skills/` |
@@ -119,6 +119,10 @@ Views → ViewModels (@Observable) → SkillManager → Services (actor)
 ```
 
 详细的架构指南、设计决策和开发环境配置请参阅 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。
+
+SkillDeck 将所管理 Skill 的主文件保存在 `~/.skilldeck/skills/`。每个被选中的 Agent（包括
+Codex）只在自己的 Skill 目录中保留可独立删除的软链接。旧版 `~/.agents/skills/` 布局会在
+首次启动时迁移一次，原文件同时备份到 `~/.skilldeck/migration-backup-v1/`，便于恢复。
 
 ## 贡献
 

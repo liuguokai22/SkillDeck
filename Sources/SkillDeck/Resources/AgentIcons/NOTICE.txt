@@ -1,0 +1,4 @@
+Agent logo SVG files in this directory are sourced from LobeHub lobe-icons.
+Source: https://github.com/lobehub/lobe-icons
+Package: @lobehub/icons-static-svg 1.95.1
+License: MIT

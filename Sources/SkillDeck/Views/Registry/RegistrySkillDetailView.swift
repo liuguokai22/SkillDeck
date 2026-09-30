@@ -64,6 +64,7 @@ struct RegistrySkillDetailView: View {
             }
             .padding()
         }
+        .background(LiquidGlass.Surface.content)
         .navigationTitle(skill.name)
         // `.task(id:)` runs an async task when the view appears, AND re-runs it whenever `id` changes.
         // When `id` changes (user clicks a different skill), SwiftUI automatically cancels the
@@ -131,8 +132,8 @@ struct RegistrySkillDetailView: View {
                     Text(skill.source).textSelection(.enabled)
                 }
                 GridRow {
-                    Text("Repository").foregroundStyle(.secondary)
-                    // Show source as a clickable link to the GitHub repository
+                    Text(skill.isWellKnown ? "Endpoint" : "Repository").foregroundStyle(.secondary)
+                    // Show source as a clickable link to the repository or endpoint
                     // Link is SwiftUI's built-in component for opening URLs in the default browser
                     if let url = URL(string: skill.repoURL) {
                         Link(skill.repoURL, destination: url)
@@ -245,9 +246,8 @@ struct RegistrySkillDetailView: View {
                 } label: {
                     Label("Install Skill", systemImage: "arrow.down.circle")
                 }
-                // .borderedProminent gives the button a filled, prominent appearance
-                // This is the macOS equivalent of a "primary" button
-                .buttonStyle(.borderedProminent)
+                // Use the native prominent Liquid Glass treatment on macOS 26+.
+                .liquidGlassButtonStyle(.prominent)
                 .disabled(isInstalled)
 
                 // Open on skills.sh — opens the skill's detail page in the browser
@@ -261,7 +261,7 @@ struct RegistrySkillDetailView: View {
                 } label: {
                     Label("View on skills.sh", systemImage: "safari")
                 }
-                .buttonStyle(.bordered)
+                .liquidGlassButtonStyle()
             }
 
             // CLI install hint — shows the npx command for reference
@@ -326,7 +326,7 @@ struct RegistrySkillDetailView: View {
                     } label: {
                         Label("View on skills.sh instead", systemImage: "safari")
                     }
-                    .buttonStyle(.bordered)
+                    .liquidGlassButtonStyle()
                     .controlSize(.small)
                 }
                 .padding(.vertical, 8)

@@ -28,31 +28,11 @@ struct ClawHubBrowserView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(LiquidGlass.Surface.content)
         .navigationTitle("ClawHub")
-        .searchable(text: $viewModel.searchText, prompt: "Search ClawHub skills...")
         .onChange(of: viewModel.searchText) { _, _ in
             viewModel.onSearchTextChanged()
-        }
-        .toolbar {
-            ToolbarItem {
-                Button {
-                    Task { await viewModel.refresh() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help("Refresh ClawHub results")
-            }
-
-            ToolbarItem {
-                Button {
-                    if let url = URL(string: "https://clawhub.ai") {
-                        NSWorkspace.shared.open(url)
-                    }
-                } label: {
-                    Image(systemName: "safari")
-                }
-                .help("Open ClawHub in browser")
-            }
         }
         .task {
             await viewModel.onAppear()
@@ -251,6 +231,8 @@ struct ClawHubBrowserView: View {
             .tag(skill.id)
         }
         .listStyle(.inset(alternatesRowBackgrounds: true))
+        .scrollContentBackground(.hidden)
+        .background(LiquidGlass.Surface.content)
     }
 
     @ViewBuilder
@@ -270,7 +252,7 @@ struct ClawHubBrowserView: View {
                 Button("Try Again") {
                     Task { await viewModel.refresh() }
                 }
-                .buttonStyle(.bordered)
+                .liquidGlassButtonStyle()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if viewModel.isSearchActive {
@@ -301,12 +283,12 @@ struct ClawHubBrowserView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .fixedSize(horizontal: true, vertical: false)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                .liquidGlassControl(
+                    tint: isSelected ? Color.accentColor.opacity(0.24) : nil
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     /// Compact menu labels share the same visual language as the chips but occupy predictable width.
@@ -322,9 +304,8 @@ struct ClawHubBrowserView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .fixedSize(horizontal: true, vertical: false)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+        .liquidGlassControl(
+            tint: isSelected ? Color.accentColor.opacity(0.24) : nil
         )
     }
 
@@ -408,7 +389,7 @@ private struct ClawHubSkillRowView: View {
                 Button(isInstalling ? "Installing..." : "Install") {
                     onInstall()
                 }
-                .buttonStyle(.bordered)
+                .liquidGlassButtonStyle()
                 .controlSize(.small)
                 .disabled(isInstalled || isInstalling)
             }

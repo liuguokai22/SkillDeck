@@ -3,16 +3,19 @@ import Foundation
 /// SkillScanner is responsible for scanning the file system to discover all installed skills
 ///
 /// Scanning strategy:
-/// 1. First scan ~/.agents/skills/ (shared global directory)
-/// 2. Then scan each Agent's skills directory
-/// 3. Deduplicate via symlink resolution: if a skill in an Agent directory is a symlink to ~/.agents/skills/,
+/// 1. First scan ~/.skilldeck/skills/ (SkillDeck-owned canonical directory)
+/// 2. Scan the external cross-agent compatibility directory (`~/.agents/skills`)
+/// 3. Then scan each Agent's skills directory
+/// 4. Deduplicate via symlink resolution: if a skill in an Agent directory is a symlink to the
+///    SkillDeck canonical directory,
 ///    keep only one copy and record it in installations
 ///
 /// This is similar to filepath.Walk in Go for traversing directory trees
 actor SkillScanner {
 
-    /// Shared global skills directory (delegates to AgentType.sharedSkillsDirectoryURL for single source of truth)
-    static let sharedSkillsURL: URL = AgentType.sharedSkillsDirectoryURL
+    /// SkillDeck-owned canonical directory. It deliberately sits outside every Agent's discovery
+    /// path so each Agent assignment can be removed independently.
+    static let sharedSkillsURL: URL = SkillStorage.canonicalSkillsURL
 
     /// Scan all skills, returning deduplicated results
     /// - Returns: Array of discovered skills (deduplicated, each skill name appears only once)
@@ -20,17 +23,27 @@ actor SkillScanner {
         // Use skill id (directory name) as deduplication key, not canonicalURL.path
         // Reason: the same skill might be pointed to by different Agent symlinks to different physical paths
         // e.g. ~/.copilot/skills/agent-notifier -> /path/to/dev/agent-notifier
-        //      ~/.agents/skills/agent-notifier   (another physical path)
+        //      ~/.skilldeck/skills/agent-notifier (another physical path)
         // Although canonicalURL is different, skill id is the same, should be treated as same skill
         var skillMap: [String: Skill] = [:]
 
-        // 1. Scan shared global directory
+        // 1. Scan SkillDeck's canonical directory
         let globalSkills = scanDirectory(Self.sharedSkillsURL, scope: .sharedGlobal)
         for skill in globalSkills {
             skillMap[skill.id] = skill
         }
 
-        // 2. Scan each Agent's skills directory
+        // 2. Keep externally managed cross-agent skills discoverable. SkillDeck never writes its
+        // own canonical files here after storage migration, so these remain Agent-local/read-only.
+        let compatibilitySkills = scanDirectory(
+            AgentType.sharedSkillsDirectoryURL,
+            scope: .agentLocal(.codex)
+        )
+        for skill in compatibilitySkills where skillMap[skill.id] == nil {
+            skillMap[skill.id] = skill
+        }
+
+        // 3. Scan each Agent's skills directory
         for agentType in AgentType.allCases {
 
             let agentSkills = scanDirectory(

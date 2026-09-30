@@ -21,7 +21,7 @@ struct SkillInstallation: Identifiable, Hashable {
     var id: String { "\(agentType.rawValue)-\(path.path)" }
 
     /// Display-friendly path of the parent directory where this installation resides.
-    /// Derives from the actual `path` property (e.g., ~/.agents/skills/foo → "~/.agents/skills"),
+    /// Derives from the actual `path` property (e.g., ~/.claude/skills/foo → "~/.claude/skills"),
     /// ensuring correct display regardless of agent type changes.
     /// NSString.abbreviatingWithTildeInPath replaces the home directory prefix with ~
     var parentDirectoryDisplayPath: String {
@@ -29,16 +29,9 @@ struct SkillInstallation: Identifiable, Hashable {
         return NSString(string: parent).abbreviatingWithTildeInPath
     }
 
-    /// Whether this installation is truly inherited (UI should treat as read-only)
-    ///
-    /// For Codex: reading from ~/.agents/skills/ is native support, not inheritance
-    /// even though findInstallations marks it as inheritedFrom: .codex
-    /// This ensures consistent behavior across all UI components
+    /// Whether this installation is inherited through another Agent's readable directory.
+    /// Inherited availability is read-only because removing it must happen at the source Agent.
     var isTrulyInherited: Bool {
-        // Codex accessing ~/.agents/skills/ is native support, not inheritance
-        if agentType == .codex && inheritedFrom == .codex {
-            return false
-        }
         return isInherited
     }
 

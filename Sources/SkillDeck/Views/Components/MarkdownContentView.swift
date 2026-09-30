@@ -181,7 +181,7 @@ struct SwiftUIMarkdownVisitor: MarkupVisitor {
     let showsChineseTranslation: Bool
 
     init(
-        fontFamily: String = FontSettings.systemFontFamily,
+        fontFamily: String = FontSettings.defaultFontFamily,
         baseSize: Double = FontSettings.defaultFontSize,
         showsChineseTranslation: Bool = false
     ) {

@@ -81,6 +81,8 @@ enum L10nKeys {
     static let sidebarHelpInstallSkill = "sidebar.help.installSkill"
     static let sidebarHelpCheckAllUpdates = "sidebar.help.checkAllUpdates"
     static let sidebarHelpRefreshSkills = "sidebar.help.refreshSkills"
+    static let sidebarHelpShow = "sidebar.help.show"
+    static let sidebarHelpHide = "sidebar.help.hide"
 
     static let emptySelectSkillTitle = "empty.selectSkill.title"
     static let emptySelectSkillSubtitleList = "empty.selectSkill.subtitle.list"
@@ -103,6 +105,37 @@ enum L10nKeys {
     static let usageCaveat = "usage.caveat"
     static let usageRefreshHelp = "usage.refresh.help"
     static let usageIncompleteHelp = "usage.incomplete.help"
+
+    static let documentationSectionTitle = "documentation.section.title"
+    static let agentAssignmentTitle = "agentAssignment.title"
+    static let agentAssignmentSummary = "agentAssignment.summary"
+    static let agentAssignmentManage = "agentAssignment.manage"
+    static let agentAssignmentNone = "agentAssignment.none"
+
+    static let tagsSectionTitle = "tags.section.title"
+    static let tagsAddTag = "tags.add"
+    static let tagsRemoveTag = "tags.remove"
+    static let tagsManage = "tags.manage"
+    static let tagsFilterAll = "tags.filter.all"
+    static let tagsCreateNew = "tags.create.new"
+    static let tagsCreatePlaceholder = "tags.create.placeholder"
+    static let tagsEmpty = "tags.empty"
+    static let tagsSectionManageTitle = "tags.section.manage.title"
+    static let tagsDeleteConfirm = "tags.delete.confirm"
+
+    static let sidebarSettings = "sidebar.settings"
+    static let settingsTabAgents = "settings.tab.agents"
+    static let settingsAgentsSectionTitle = "settings.agents.section.title"
+    static let settingsAgentsSectionSubtitle = "settings.agents.section.subtitle"
+    static let settingsAgentsShowAll = "settings.agents.showAll"
+    static let settingsAgentsShowInstalledOnly = "settings.agents.showInstalledOnly"
+    static let settingsAgentsInstalledBadge = "settings.agents.installed"
+    static let settingsAgentsNotInstalledBadge = "settings.agents.notInstalled"
+    static let settingsAgentsHideAction = "settings.agents.hideAction"
+    static let settingsAgentsShowAction = "settings.agents.showAction"
+    static let commonCancel = "common.cancel"
+    static let commonDelete = "common.delete"
+    static let commonClose = "common.close"
 
     static let allKeys: [String] = [
         appName,
@@ -171,6 +204,8 @@ enum L10nKeys {
         sidebarHelpInstallSkill,
         sidebarHelpCheckAllUpdates,
         sidebarHelpRefreshSkills,
+        sidebarHelpShow,
+        sidebarHelpHide,
         emptySelectSkillTitle,
         emptySelectSkillSubtitleList,
         emptySelectSkillSubtitleRegistry,
@@ -190,5 +225,33 @@ enum L10nKeys {
         usageCaveat,
         usageRefreshHelp,
         usageIncompleteHelp,
+        documentationSectionTitle,
+        agentAssignmentTitle,
+        agentAssignmentSummary,
+        agentAssignmentManage,
+        agentAssignmentNone,
+        tagsSectionTitle,
+        tagsAddTag,
+        tagsRemoveTag,
+        tagsManage,
+        tagsFilterAll,
+        tagsCreateNew,
+        tagsCreatePlaceholder,
+        tagsEmpty,
+        tagsSectionManageTitle,
+        tagsDeleteConfirm,
+        sidebarSettings,
+        settingsTabAgents,
+        settingsAgentsSectionTitle,
+        settingsAgentsSectionSubtitle,
+        settingsAgentsShowAll,
+        settingsAgentsShowInstalledOnly,
+        settingsAgentsInstalledBadge,
+        settingsAgentsNotInstalledBadge,
+        settingsAgentsHideAction,
+        settingsAgentsShowAction,
+        commonCancel,
+        commonDelete,
+        commonClose,
     ]
 }

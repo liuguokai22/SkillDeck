@@ -57,7 +57,7 @@ Views → ViewModels (@Observable) → SkillManager (@Observable) → Services (
 
 ## Key Data Patterns
 
-**Skill storage**: canonical files live in `~/.agents/skills/<name>/SKILL.md`. Each agent gets a symlink: `~/.claude/skills/<name>` → canonical path. The lock file at `~/.agents/.skill-lock.json` (version 3) tracks metadata.
+**Skill storage**: SkillDeck-managed canonical files live in `~/.skilldeck/skills/<name>/SKILL.md`. Every assigned Agent, including Codex, gets an independently removable symlink in its own skills directory. The lock file at `~/.agents/.skill-lock.json` (version 3) tracks metadata; `~/.agents/skills/` remains an external compatibility source rather than SkillDeck storage.
 
 **SKILL.md format**: YAML frontmatter (between `---` delimiters) + markdown body. Parsed by `SkillMDParser` (enum namespace with static methods). Metadata struct is `Codable` for Yams serialization.
 

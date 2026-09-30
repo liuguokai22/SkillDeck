@@ -46,252 +46,182 @@ struct SidebarView: View {
 
     @Environment(\.localizationBundle) private var localizationBundle
     @Environment(\.locale) private var locale
+    @Environment(\.controlActiveState) private var controlActiveState
 
-    /// macOS 14+ provides native SwiftUI action to open settings window
-    /// @Environment(\.openSettings) gets the system-provided OpenSettingsAction from environment,
-    /// calling openSettings() is equivalent to user pressing Cmd+, (more reliable than NSApp.sendAction)
-    @Environment(\.openSettings) private var openSettings
+    /// Persisted comma-separated list of hidden agent raw values
+    @AppStorage(AgentVisibilitySettings.hiddenAgentsKey) private var hiddenAgentsRaw: String = ""
 
-    /// Currently hovered sidebar item
-    /// @State is view-private state, hover state is only used within this view, no need to pass to parent component
-    @State private var hoveredItem: SidebarItem?
-
-    /// F10: Install modal's ViewModel (created only when showing sheet)
-    /// Uses `.sheet(item:)` binding: shows sheet when non-nil, closes when nil
-    /// This way uses only one @State variable to control both sheet display and content, avoiding dual state synchronization timing issues
-    @State private var installVM: SkillInstallViewModel?
-
-    /// Local import modal's ViewModel (created only when showing sheet)
-    /// Same pattern as installVM: nil = hidden, non-nil = show sheet
-    @State private var localImportVM: LocalImportViewModel?
+    /// The fixed Settings row lives outside the scrolling List, so it owns a small hover state.
+    @State private var isSettingsHovered = false
 
     private var sectionHeaderFont: Font {
-        FontSettings.font(family: appFontFamily, baseSize: appFontBaseSize, textStyle: .headline)
+        FontSettings.font(family: appFontFamily, baseSize: appFontBaseSize, textStyle: .caption)
     }
 
     var body: some View {
-        List(selection: $selection) {
-            // Section creates groups (shown as collapsible groups in macOS sidebar)
-            Section {
-                sidebarRow(
-                    item: .dashboard,
-                    accessibilityLabel: L10n.string(L10nKeys.sidebarDashboard, bundle: localizationBundle, locale: locale)
-                ) {
-                    Label {
-                        LText(key: L10nKeys.sidebarDashboard)
-                    } icon: {
-                        Image(systemName: "square.grid.2x2")
-                    }
-                }
-                .badge(skillManager.skills.count)
-                // .listRowBackground must be the LAST modifier on the row.
-                // If placed inside sidebarRow() before .badge()/.opacity(), those outer
-                // modifiers wrap the view and prevent the background preference from
-                // propagating to the List — causing no visible selection highlight.
-                .listRowBackground(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(rowBackground(for: .dashboard))
-                )
-
-                // F09: Registry browser — browse and search skills.sh catalog
-                sidebarRow(
-                    item: .registry,
-                    accessibilityLabel: L10n.string(L10nKeys.sidebarRegistry, bundle: localizationBundle, locale: locale)
-                ) {
-                    Label {
-                        LText(key: L10nKeys.sidebarRegistry)
-                    } icon: {
-                        Image(systemName: "globe")
-                    }
-                }
-                .listRowBackground(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(rowBackground(for: .registry))
-                )
-
-                sidebarRow(
-                    item: .clawHub,
-                    accessibilityLabel: L10n.string(L10nKeys.sidebarClawHub, bundle: localizationBundle, locale: locale)
-                ) {
-                    Label {
-                        LText(key: L10nKeys.sidebarClawHub)
-                    } icon: {
-                        Image(systemName: "shippingbox")
-                    }
-                }
-                .listRowBackground(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(rowBackground(for: .clawHub))
-                )
-            } header: {
-                LText(key: L10nKeys.sidebarSectionOverview)
-                    .font(sectionHeaderFont)
-                    .textCase(nil)
-            }
-
-            Section {
-                ForEach(AgentType.allCases) { agentType in
-                    let agent = skillManager.agents.first { $0.type == agentType }
-
+        VStack(spacing: 0) {
+            // Only the destinations and Agent filters scroll. Keeping Settings outside this List
+            // makes it a stable bottom destination, matching Finder and Mail sidebars.
+            List {
+                // Section creates groups (shown as collapsible groups in macOS sidebar)
+                Section {
                     sidebarRow(
-                        item: .agent(agentType),
-                        accessibilityLabel: agentType.displayName
+                        item: .dashboard,
+                        accessibilityLabel: L10n.string(L10nKeys.sidebarDashboard, bundle: localizationBundle, locale: locale),
+                        badgeCount: skillManager.skills.isEmpty ? nil : skillManager.skills.count
                     ) {
                         Label {
-                            Text(agentType.displayName)
-                                .foregroundStyle(selection == .agent(agentType) ? .primary : .secondary)
-                                .fontWeight(selection == .agent(agentType) ? .semibold : .regular)
+                            LText(key: L10nKeys.sidebarDashboard)
                         } icon: {
-                            Image(systemName: agentType.iconName)
-                                .foregroundStyle(Constants.AgentColors.color(for: agentType))
+                            Image(systemName: "square.grid.2x2")
                         }
                     }
-                    .badge(skillManager.skills(for: agentType).count)
-                    // Use skillManager.skills(for:) instead of agent?.skillCount,
-                    // because the latter only counts skills in Agent's own directory (from AgentDetector),
-                    // not including inherited installations (like Copilot inheriting skills from Claude directory)
-                    // opacity controls transparency: uninstalled Agents are shown semi-transparent
-                    .opacity(agent?.isInstalled == true ? 1.0 : 0.5)
-                    // .listRowBackground must be the LAST modifier — after .badge() and .opacity().
-                    // Those outer modifiers wrap the view and block background preference propagation
-                    // if .listRowBackground is applied before them (e.g. inside sidebarRow()).
-                    .listRowBackground(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(rowBackground(for: .agent(agentType)))
-                    )
-                }
-            } header: {
-                LText(key: L10nKeys.sidebarSectionAgents)
-                    .font(sectionHeaderFont)
-                    .textCase(nil)
-            }
-        }
-        // macOS sidebar standard style
-        .listStyle(.sidebar)
-        .navigationTitle(L10n.string(L10nKeys.appName, bundle: localizationBundle, locale: locale))
-        // Sidebar top toolbar action buttons (native macOS toolbar style)
-        // Works with .navigationSplitViewColumnWidth(min: 180) minimum width constraint in ContentView,
-        // ensures sidebar won't be too narrow when window state is restored, preventing ToolbarItem overflow/hiding
-        .toolbar {
-            // App update reminder button: shows orange upward arrow when new version is available
-            // Opens settings window when clicked (by sending system notification showSettingsWindow)
-            // Only shows when appUpdateInfo is not nil, users will notice this newly appearing icon
-            ToolbarItem {
-                if skillManager.appUpdateInfo != nil {
-                    Button {
-                        // openSettings() is macOS 14+ native SwiftUI API,
-                        // equivalent to user pressing Cmd+, opens settings window defined in Settings { } scene
-                        openSettings()
-                    } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .foregroundStyle(.orange)
-                    }
-                    .help(L10n.string(L10nKeys.sidebarHelpUpdateAvailable, bundle: localizationBundle, locale: locale))
-                }
-            }
-
-            // F10: "+" button for installing new skill
-            // Menu with primaryAction: clicking the button directly opens GitHub install,
-            // long-press or clicking the chevron reveals dropdown with both options.
-            // primaryAction makes the menu button behave as a split button (action + dropdown)
-            ToolbarItem {
-                Menu {
-                    // Dropdown menu items (shown on long-press or chevron click)
-                    Button {
-                        installVM = SkillInstallViewModel(skillManager: skillManager)
-                    } label: {
+                    // F09: Registry browser — browse and search skills.sh catalog
+                    sidebarRow(
+                        item: .registry,
+                        accessibilityLabel: L10n.string(L10nKeys.sidebarRegistry, bundle: localizationBundle, locale: locale)
+                    ) {
                         Label {
-                            LText(key: L10nKeys.sidebarInstallFromGitHub)
+                            LText(key: L10nKeys.sidebarRegistry)
                         } icon: {
                             Image(systemName: "globe")
                         }
                     }
 
-                    Button {
-                        localImportVM = LocalImportViewModel(skillManager: skillManager)
-                    } label: {
+                    sidebarRow(
+                        item: .clawHub,
+                        accessibilityLabel: L10n.string(L10nKeys.sidebarClawHub, bundle: localizationBundle, locale: locale)
+                    ) {
                         Label {
-                            LText(key: L10nKeys.sidebarInstallFromLocalFolder)
+                            LText(key: L10nKeys.sidebarClawHub)
                         } icon: {
-                            Image(systemName: "folder")
+                            Image(systemName: "shippingbox")
                         }
                     }
-                } label: {
-                    Image(systemName: "plus")
-                } primaryAction: {
-                    // Default click action: open GitHub install (most common use case)
-                    installVM = SkillInstallViewModel(skillManager: skillManager)
+                } header: {
+                    LText(key: L10nKeys.sidebarSectionOverview)
+                        .font(sectionHeaderFont)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
                 }
-                .help(L10n.string(L10nKeys.sidebarHelpInstallSkill, bundle: localizationBundle, locale: locale))
-            }
 
-            // F12: Batch check updates for all skills
-            ToolbarItem {
-                Button {
-                    Task { await skillManager.checkAllUpdates() }
-                } label: {
-                    // When checking, shows spinning progress indicator (ProgressView) + progress count (e.g., 3/12),
-                    // otherwise shows static icon
-                    if skillManager.isCheckingUpdates {
-                        HStack(spacing: 4) {
-                            ProgressView()
-                                .controlSize(.small)
-                            // Progress count: counts number of skills that have completed checking / total pending check count
-                            // Skills in .checking state are still being checked, others (.hasUpdate/.upToDate/.error) indicate completed
-                            let total = skillManager.skills.filter { skill in
-                                guard let sourceType = skill.lockEntry?.sourceType else { return false }
-                                return sourceType != "local" && sourceType != "clawhub"
-                            }.count
-                            // compactMap is similar to Java Stream's filter+map combination:
-                            // first get value from dictionary (may be nil), then filter out .checking state
-                            let checked = skillManager.updateStatuses.values.filter {
-                                $0 != .checking && $0 != .notChecked
-                            }.count
-                            Text("\(checked)/\(total)").appFont(.caption)
-                                .monospacedDigit()  // Monospaced digit font, avoids width jumping when numbers change
-                                .foregroundStyle(.secondary)
+                Section {
+                    let visibleAgents = AgentVisibilitySettings.visibleAgents(hiddenRaw: hiddenAgentsRaw)
+                    ForEach(visibleAgents) { agentType in
+                        let agent = skillManager.agents.first { $0.type == agentType }
+                        let skillCount = skillManager.skills(for: agentType).count
+
+                        sidebarRow(
+                            item: .agent(agentType),
+                            accessibilityLabel: agentType.displayName,
+                            badgeCount: skillCount == 0 ? nil : skillCount
+                        ) {
+                            Label {
+                                Text(agentType.displayName)
+                                    .fontWeight(selection == .agent(agentType) ? .semibold : .regular)
+                            } icon: {
+                                AgentBrandIcon(agentType: agentType, size: 19)
+                            }
                         }
-                    } else {
-                        Image(systemName: "arrow.triangle.2.circlepath")
+                        .opacity(agent?.isAvailable == true ? 1.0 : 0.5)
+                        .contextMenu {
+                            Button {
+                                AgentVisibilitySettings.setVisible(false, for: agentType, hiddenRaw: &hiddenAgentsRaw)
+                            } label: {
+                                Label(
+                                    L10n.string(L10nKeys.settingsAgentsHideAction, bundle: localizationBundle, locale: locale),
+                                    systemImage: "eye.slash"
+                                )
+                            }
+                        }
                     }
+                } header: {
+                    LText(key: L10nKeys.sidebarSectionAgents)
+                        .font(sectionHeaderFont)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
                 }
-                .help(L10n.string(L10nKeys.sidebarHelpCheckAllUpdates, bundle: localizationBundle, locale: locale))
-                .disabled(skillManager.isCheckingUpdates)
             }
+            .listStyle(.sidebar)
+            // The list's scroll background is hidden so every sidebar destination uses the same
+            // slightly deeper semantic surface, including empty space below the last Agent.
+            .scrollContentBackground(.hidden)
+            .background(LiquidGlass.Surface.sidebar)
 
-            // Refresh button: rescan file system
-            ToolbarItem {
-                Button {
-                    Task { await skillManager.refresh() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help(L10n.string(L10nKeys.sidebarHelpRefreshSkills, bundle: localizationBundle, locale: locale))
+            Divider()
+                .opacity(0.5)
+
+            fixedSettingsRow
+        }
+        .background(LiquidGlass.Surface.sidebar.ignoresSafeArea())
+        .navigationTitle(L10n.string(L10nKeys.appName, bundle: localizationBundle, locale: locale))
+    }
+
+    /// A non-scrolling Settings destination anchored to the bottom edge of the sidebar.
+    ///
+    /// This row intentionally uses one background only. The previous implementation layered a
+    /// custom `listRowBackground` on top of the sidebar List's native selection material, which
+    /// produced the darker rectangular patch visible in the reference screenshot.
+    private var fixedSettingsRow: some View {
+        let isSelected = selection == .settings
+        let accessibilityLabel = L10n.string(
+            L10nKeys.sidebarSettings,
+            bundle: localizationBundle,
+            locale: locale
+        )
+
+        return Button {
+            selection = .settings
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "gearshape")
+                    .frame(width: 20)
+                LText(key: L10nKeys.sidebarSettings)
+                Spacer(minLength: 0)
+            }
+            .appFont(.body)
+            .fontWeight(isSelected ? .semibold : .regular)
+            .foregroundStyle(sidebarForeground(isSelected: isSelected))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .background {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(fixedSettingsBackground(isSelected: isSelected))
             }
         }
-        // F10: Install sheet modal
-        // .sheet(item:) binds sheet display and content to the same Optional variable:
-        // - installVM non-nil → show sheet, closure parameter vm is the unwrapped value
-        // - installVM nil → close sheet
-        // This is safer than .sheet(isPresented:) + extra @State, avoids dual state sync timing causing blank window on first open
-        // onDismiss calls cleanup to clean temp directory when sheet closes
-        .sheet(item: $installVM, onDismiss: {
-            installVM?.cleanup()
-            installVM = nil
-        }) { vm in
-            SkillInstallView(viewModel: vm)
-                // .environment() injects SkillManager into sheet's view tree
-                // Sheet creates new view hierarchy, needs to re-inject environment dependencies
-                .environment(skillManager)
+        .buttonStyle(.plain)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .accessibilityLabel(accessibilityLabel)
+        .onHover { isHovering in
+            withAnimation(.easeInOut(duration: 0.12)) {
+                isSettingsHovered = isHovering
+            }
         }
-        // Local import sheet modal
-        // Same pattern as install sheet: .sheet(item:) binds display to Optional variable
-        .sheet(item: $localImportVM, onDismiss: {
-            localImportVM = nil
-        }) { vm in
-            LocalImportView(viewModel: vm)
-                .environment(skillManager)
-        }
+    }
+
+    /// Reproduces the active/inactive native sidebar selection hierarchy for the fixed row.
+    private func fixedSettingsBackground(isSelected: Bool) -> Color {
+        if isSelected { return sidebarSelectionBackground(isSelected: true) }
+
+        return isSettingsHovered ? Color.primary.opacity(0.06) : Color.clear
+    }
+
+    /// A single semantic selection fill shared by every navigation row.
+    private func sidebarSelectionBackground(isSelected: Bool) -> Color {
+        guard isSelected else { return .clear }
+        return controlActiveState == .inactive
+            ? Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+            : Color(nsColor: .selectedContentBackgroundColor)
+    }
+
+    /// Returns a readable label color for both active blue selection and inactive gray selection.
+    private func sidebarForeground(isSelected: Bool) -> Color {
+        guard isSelected else { return .secondary }
+        return controlActiveState == .inactive ? .primary : .white
     }
 
     /// Build sidebar row view,统一 handling click, selection highlight and hover effects
@@ -313,6 +243,7 @@ struct SidebarView: View {
     private func sidebarRow<Label: View>(
         item: SidebarItem,
         accessibilityLabel: String,
+        badgeCount: Int? = nil,
         @ViewBuilder label: () -> Label
     ) -> some View {
         // Use HStack + Spacer to make content span full row width
@@ -321,24 +252,49 @@ struct SidebarView: View {
             label()
                 .appFont(.body)
             Spacer(minLength: 0)
+
+            if let badgeCount {
+                Text("\(badgeCount)")
+                    .appFont(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(sidebarForeground(isSelected: selection == item))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background {
+                        Capsule()
+                            .fill(
+                                selection == item
+                                    ? Color.white.opacity(0.18)
+                                    : Color.primary.opacity(0.07)
+                            )
+                    }
+            }
         }
         // Horizontal padding keeps content appropriate distance from row edges, consistent with sidebar style
         .padding(.horizontal, 4)
         // Vertical padding ensures hover/selection background height matches macOS sidebar row height
         .padding(.vertical, 4)
+        // Every row gets identical List insets. Counts are drawn inside this full-width container,
+        // so Dashboard, Registry, ClawHub, and Agent selections share one highlight length.
+        .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
         // Remove default foreground styling - apply directly to label content instead
-        .foregroundStyle(selection == item ? .primary : .secondary)
+        .foregroundStyle(sidebarForeground(isSelected: selection == item))
         // .contentShape(Rectangle()) expands interaction area (click+hover) to entire row rectangle
         // Must be applied to container that already spans full width to take effect
         // Similar to CSS pointer-events: all + width: 100%
         .contentShape(Rectangle())
+        // The List no longer owns selection rendering. Drawing exactly one background here fixes
+        // the missing highlight without reintroducing the double-layer rectangle from the earlier
+        // `List(selection:)` plus `listRowBackground` combination.
+        .background {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(sidebarSelectionBackground(isSelected: selection == item))
+        }
         // .onTapGesture handles click events - using this instead of Button to avoid
         // gesture conflicts with List(selection:) which can intercept Button taps
         .onTapGesture {
             selection = item
         }
-        // .tag associates selection value, letting List know which SidebarItem this row corresponds to
-        .tag(item)
         // Accessibility: Restore button semantics lost when replacing Button with HStack + onTapGesture
         // .accessibilityElement makes the entire row a single accessibility element (similar to Button behavior)
         // children: .combine merges child labels into a single announcement
@@ -352,42 +308,5 @@ struct SidebarView: View {
         // .accessibilityInputLabels allows users to navigate by typing the item name
         // Uses the same localized accessibilityLabel for consistency
         .accessibilityInputLabels([accessibilityLabel])
-        // .onHover listens for mouse enter/leave events (macOS specific, similar to CSS :hover)
-        // Closure parameter isHovering: Bool indicates if mouse is over element
-        .onHover { isHovering in
-            // Use withAnimation to add transition animation, .easeInOut is ease-in-out curve
-            // duration: 0.15 is 150 milliseconds, fast enough but not abrupt
-            withAnimation(.easeInOut(duration: 0.15)) {
-                hoveredItem = isHovering ? item : nil
-            }
-        }
-    }
-
-    /// Returns row background color based on selection/hover state
-    /// macOS native sidebar color guidelines:
-    /// - Selected: accentColor (system accent color, default blue) + moderate opacity for clear visibility
-    /// - Hover: primary (adaptive black/white) + very low opacity
-    /// - Normal: fully transparent
-    ///
-    /// Note: `.listStyle(.sidebar)` provides its own native selection indicator,
-    /// but `.listRowBackground()` replaces it entirely. We must ensure our custom
-    /// background is visible enough — opacity(0.2) provides a clear highlight
-    /// while still looking subtle and native.
-    private func rowBackground(for item: SidebarItem) -> Color {
-        if selection == item {
-            // Selected state: if Agent item, use that Agent's brand color; Dashboard/Registry/Settings keep system accentColor
-            // Swift 5.9 if/else expression syntax: can use if-else directly in let assignment, similar to ternary but supports pattern matching
-            let baseColor: Color = if case .agent(let agentType) = item {
-                Constants.AgentColors.color(for: agentType)
-            } else {
-                Color.accentColor
-            }
-            return baseColor.opacity(0.2)
-        } else if hoveredItem == item {
-            // Hover state: very light gray background, hinting "this is clickable"
-            return Color.primary.opacity(0.08)
-        }
-        // Normal state: transparent
-        return Color.clear
     }
 }

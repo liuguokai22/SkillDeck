@@ -32,6 +32,7 @@ struct ClawHubSkillDetailView: View {
             }
             .padding()
         }
+        .background(LiquidGlass.Surface.content)
         .navigationTitle(skill.name)
         .task(id: skill.id) {
             await viewModel.loadSelection(for: skill)
@@ -216,7 +217,7 @@ struct ClawHubSkillDetailView: View {
                         Label("Install to OpenClaw", systemImage: "arrow.down.circle")
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .liquidGlassButtonStyle(.prominent)
                 .disabled(isInstalled || isInstalling)
 
                 Button {
@@ -224,7 +225,7 @@ struct ClawHubSkillDetailView: View {
                 } label: {
                     Label("View on ClawHub", systemImage: "safari")
                 }
-                .buttonStyle(.bordered)
+                .liquidGlassButtonStyle()
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -274,7 +275,7 @@ struct ClawHubSkillDetailView: View {
                     } label: {
                         Label("View on ClawHub instead", systemImage: "safari")
                     }
-                    .buttonStyle(.bordered)
+                    .liquidGlassButtonStyle()
                     .controlSize(.small)
                 }
                 .padding(.vertical, 8)

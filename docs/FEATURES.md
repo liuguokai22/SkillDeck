@@ -23,6 +23,7 @@
 | Agent Status Indicators | Sidebar shows skill count per agent; uninstalled agents shown dimmed |
 | Agent Assignment | Toggle switches to install/uninstall a skill to specific agents (auto-manages symlinks) |
 | Inherited Installation Protection | Inherited cross-agent installations are labeled with their source and toggle-disabled |
+| Independent Canonical Storage | Stores managed source files in `~/.skilldeck/skills/`; every Agent assignment is a removable direct symlink |
 
 ### Skill Detail & Editing
 
@@ -98,7 +99,7 @@
 ### P1 — v1.0
 
 - [x] **F09 — Registry Browser**: Browse [skills.sh](https://skills.sh) catalog (all-time, trending, hot) with search
-- [x] **F10 — One-Click Install**: Clone from GitHub, place in `~/.agents/skills/`, create symlinks, update lock file
+- [x] **F10 — One-Click Install**: Clone from GitHub, place in `~/.skilldeck/skills/`, create Agent-specific symlinks, update lock file
 - [ ] **F11 — Project Skills**: Open a project directory, manage its `.agents/skills/`
 - [x] **F12 — Update Checker**: Compare local `skillFolderHash` against remote repo HEAD
 - [ ] **F13 — Create Skill Wizard**: Scaffold new skill with SKILL.md template

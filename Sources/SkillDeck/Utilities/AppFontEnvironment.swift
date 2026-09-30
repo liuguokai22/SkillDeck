@@ -1,7 +1,7 @@
 import SwiftUI
 
 private struct AppFontFamilyKey: EnvironmentKey {
-    static let defaultValue = FontSettings.systemFontFamily
+    static let defaultValue = FontSettings.defaultFontFamily
 }
 
 private struct AppFontBaseSizeKey: EnvironmentKey {

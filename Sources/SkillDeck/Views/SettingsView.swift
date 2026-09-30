@@ -25,6 +25,12 @@ struct SettingsView: View {
                     Text(L10n.string(L10nKeys.settingsTabGeneral, bundle: localizationBundle, locale: locale))
                 }
 
+            AgentSettingsView()
+                .tabItem {
+                    Image(systemName: "cpu")
+                    Text(L10n.string(L10nKeys.settingsTabAgents, bundle: localizationBundle, locale: locale))
+                }
+
             ProxySettingsView()
                 .tabItem {
                     Image(systemName: "network")
@@ -57,7 +63,7 @@ struct SettingsView: View {
 struct GeneralSettingsView: View {
 
     /// @AppStorage keeps UI preferences in UserDefaults and updates the view automatically.
-    @AppStorage(FontSettings.familyKey) private var uiFontFamily = FontSettings.systemFontFamily
+    @AppStorage(FontSettings.familyKey) private var uiFontFamily = FontSettings.defaultFontFamily
     @AppStorage(FontSettings.sizeKey) private var uiFontSize = FontSettings.defaultFontSize
 
     @AppStorage(LanguageSettings.appLanguageKey) private var appLanguageRaw: String = LanguageSettings.defaultLanguage.rawValue
@@ -165,7 +171,7 @@ struct GeneralSettingsView: View {
                             Button("Browse...") {
                                 selectOpenClawDirectory()
                             }
-                            .buttonStyle(.bordered)
+                            .liquidGlassButtonStyle()
                             .controlSize(.small)
                         }
                     } label: {
@@ -333,7 +339,7 @@ struct AboutSettingsView: View {
                 Button(L10n.string(L10nKeys.settingsUpdateRetry, bundle: localizationBundle, locale: locale)) {
                     Task { await skillManager.checkForAppUpdate(force: true) }
                 }
-                .buttonStyle(.bordered)
+                .liquidGlassButtonStyle()
                 .controlSize(.small)
             }
         } else if let updateInfo = skillManager.appUpdateInfo {
@@ -354,12 +360,12 @@ struct AboutSettingsView: View {
                 }
 
                 HStack(spacing: 12) {
-                    // "Update Now" button triggers download and install update
-                    // .borderedProminent is filled prominent button style (similar to Material Design's Filled Button)
+                    // The adaptive style uses native Liquid Glass on macOS 26+ and a bordered
+                    // prominent fallback on older supported releases.
                     Button(L10n.string(L10nKeys.settingsUpdateNow, bundle: localizationBundle, locale: locale)) {
                         Task { await skillManager.performUpdate() }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .liquidGlassButtonStyle(.prominent)
                     .controlSize(.small)
 
                     // "View on GitHub" link opens Release page in browser
@@ -379,7 +385,7 @@ struct AboutSettingsView: View {
             Button(L10n.string(L10nKeys.settingsUpdateCheckForUpdates, bundle: localizationBundle, locale: locale)) {
                 Task { await skillManager.checkForAppUpdate(force: true) }
             }
-            .buttonStyle(.bordered)
+            .liquidGlassButtonStyle()
             .controlSize(.small)
         }
     }

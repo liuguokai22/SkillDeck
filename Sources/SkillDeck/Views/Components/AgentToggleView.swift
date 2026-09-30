@@ -4,7 +4,6 @@ import SwiftUI
 ///
 /// One Toggle per Agent (switch), creates symlink when on, deletes when off
 /// Toggle for inherited installation (isInherited) shows as ON but disabled, with source hint
-/// For Codex: skill in ~/.agents/skills/ is native support, always ON and disabled
 struct AgentToggleView: View {
 
     let skillID: String
@@ -50,24 +49,14 @@ private struct AgentToggleRow: View {
     }
 
     /// Check if this is an inherited installation (from another Agent's directory)
-    /// Uses isTrulyInherited which treats Codex's ~/.agents/skills/ as non-inherited
     private var isInherited: Bool {
         installation?.isTrulyInherited ?? false
-    }
-
-    /// Check if this is Codex native support (skill in ~/.agents/skills/)
-    /// Native support means the skill is in Codex's official user-level directory
-    private var isCodexNativeSupport: Bool {
-        guard agentType == .codex else { return false }
-        guard let installation = installation else { return false }
-        // Native support: skill is in ~/.agents/skills/ (Codex's official directory)
-        return installation.inheritedFrom == .codex
     }
 
     /// Whether the Agent is available (installed or config exists)
     private var isAgentAvailable: Bool {
         let agent = skillManager.agents.first { $0.type == agentType }
-        return agent?.isInstalled == true || agent?.configDirectoryExists == true
+        return agent?.isAvailable == true
     }
 
     /// Whether the toggle should be disabled
@@ -75,14 +64,12 @@ private struct AgentToggleRow: View {
         // Disabled conditions:
         // - Inherited installation (need to modify at source Agent)
         // - Agent not installed and skill not installed
-        // - Codex native support (always on, cannot be toggled)
-        isInherited || isCodexNativeSupport || (!isAgentAvailable && !isInstalled)
+        isInherited || (!isAgentAvailable && !isInstalled)
     }
 
     var body: some View {
         HStack {
-            Image(systemName: agentType.iconName)
-                .foregroundStyle(Constants.AgentColors.color(for: agentType))
+            AgentBrandIcon(agentType: agentType, size: 19)
                 .frame(width: 20)
 
             Text(agentType.displayName)
@@ -90,11 +77,7 @@ private struct AgentToggleRow: View {
             Spacer()
 
             // Hint text for special states
-            if isCodexNativeSupport {
-                // Codex native support: skill is in ~/.agents/skills/
-                Text("Native support").appFont(.caption)
-                    .foregroundStyle(.secondary)
-            } else if isInherited, let installation {
+            if isInherited, let installation {
                 // Inherited installation: shows source path like "via ~/.claude/skills"
                 Text("via \(installation.parentDirectoryDisplayPath)").appFont(.caption)
                     .foregroundStyle(.secondary)

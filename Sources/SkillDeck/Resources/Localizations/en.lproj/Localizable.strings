@@ -83,6 +83,8 @@
 "sidebar.help.installSkill" = "Install skill";
 "sidebar.help.checkAllUpdates" = "Check all skills for updates";
 "sidebar.help.refreshSkills" = "Refresh skills";
+"sidebar.help.show" = "Show Sidebar";
+"sidebar.help.hide" = "Hide Sidebar";
 
 "empty.selectSkill.title" = "Select a Skill";
 "empty.selectSkill.subtitle.list" = "Choose a skill from the list to view its details";
@@ -105,3 +107,34 @@
 "usage.caveat" = "Best-effort evidence only. Missing logs, other Agents, and project references are not included.";
 "usage.refresh.help" = "Rescan Codex usage history";
 "usage.incomplete.help" = "Some Codex history files could not be read; usage statistics may be incomplete";
+
+"documentation.section.title" = "Documentation";
+"agentAssignment.title" = "Agent Assignment";
+"agentAssignment.summary" = "Assigned to %d Agents";
+"agentAssignment.manage" = "Manage";
+"agentAssignment.none" = "No Agents assigned";
+
+"tags.section.title" = "Tags";
+"tags.add" = "Add Tag";
+"tags.remove" = "Remove Tag";
+"tags.manage" = "Manage Tags";
+"tags.filter.all" = "All";
+"tags.create.new" = "New Tag";
+"tags.create.placeholder" = "Enter tag name";
+"tags.empty" = "No tags assigned";
+"tags.section.manage.title" = "Manage Tags";
+"tags.delete.confirm" = "Delete tag \"%@\"? This will remove it from all skills.";
+
+"sidebar.settings" = "Settings";
+"settings.tab.agents" = "Agents";
+"settings.agents.section.title" = "Sidebar Agents";
+"settings.agents.section.subtitle" = "Choose which agents are displayed in the sidebar navigation.";
+"settings.agents.showAll" = "Show All";
+"settings.agents.showInstalledOnly" = "Installed Only";
+"settings.agents.installed" = "Installed";
+"settings.agents.notInstalled" = "Not Installed";
+"settings.agents.hideAction" = "Hide from Sidebar";
+"settings.agents.showAction" = "Show in Sidebar";
+"common.cancel" = "Cancel";
+"common.delete" = "Delete";
+"common.close" = "Close";

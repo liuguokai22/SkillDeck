@@ -14,7 +14,7 @@ actor CodexSkillUsageService {
     private let fileManager: FileManager
 
     /// Increment when the persisted cache schema or matching semantics change.
-    private static let cacheVersion = 2
+    private static let cacheVersion = 3
 
     /// Production initializer based on the current macOS user's home directory.
     init(
@@ -343,6 +343,12 @@ actor CodexSkillUsageService {
 
         if relative.count == 4,
            relative[0] == ".agents",
+           relative[1] == "skills" {
+            return relative[2]
+        }
+
+        if relative.count == 4,
+           relative[0] == ".skilldeck",
            relative[1] == "skills" {
             return relative[2]
         }

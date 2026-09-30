@@ -50,7 +50,7 @@ Qoder        → ~/.qoder/skills/
 1. **直接安装优先**：同一 skill 同时存在于两个目录时，以 Agent 自身目录为准
 2. **继承安装只读**：UI 上继承安装的 Toggle 不可操作，需到源 Agent 处修改
 3. **删除安全**：删除 skill 时跳过继承安装的 symlink（它们属于其他 Agent 的目录）
-4. **单一真实来源**：跨目录规则定义在 `AgentType.additionalReadableSkillsDirectories`
+4. **单一真实来源**：SkillDeck 主文件位于 `~/.skilldeck/skills/`；跨目录规则定义在 `AgentType.additionalReadableSkillsDirectories`
 
 ---
 
@@ -69,7 +69,7 @@ Qoder        → ~/.qoder/skills/
    示例：~/.copilot/skills/ 中的同名 skill 覆盖 ~/.claude/skills/ 中的
 
 4. 是否存在多级 symlink 链？
-   示例：~/.copilot/skills/foo → ~/.claude/skills/foo → ~/.agents/skills/foo
+   示例：~/.copilot/skills/foo → ~/.claude/skills/foo → ~/.skilldeck/skills/foo
 
 5. Agent 是否能修改其他目录的内容？
    通常为只读（继承安装不可编辑），确认即可
